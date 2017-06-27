@@ -277,7 +277,7 @@ def Save_To_File(df, Iteration):
 
     if(choice == 'Y'):
 
-        filename = "Trail:" + str(Iteration)
+        filename = "Trial:" + str(Iteration)
         path = r'/home/jared/Desktop/mfvd/Saves'
         df.to_csv(os.path.join(path, filename), header=True, sep='\t')
         pylab.savefig(os.path.join(path, filename),
