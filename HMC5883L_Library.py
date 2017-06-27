@@ -86,17 +86,17 @@ def Average_Data(x, y, z):
         # X List
         if(len(X_Arr) < List_Length):
             X_Arr.append(x)
-        X_Avg = round((float(sum(X_Arr)) / float(len(X_Arr))), 2)
+            X_Avg = round((float(sum(X_Arr)) / float(len(X_Arr))), 2)
 
         # Y List
         if(len(Y_Arr) < List_Length):
             Y_Arr.append(y)
-        Y_Avg = round((float(sum(Y_Arr)) / float(len(Y_Arr))), 2)
+            Y_Avg = round((float(sum(Y_Arr)) / float(len(Y_Arr))), 2)
 
         # Z List
         if(len(Z_Arr) < List_Length):
             Z_Arr.append(z)
-        Z_Avg = round((float(sum(Z_Arr)) / float(len(Z_Arr))), 2)
+            Z_Avg = round((float(sum(Z_Arr)) / float(len(Z_Arr))), 2)
 
         if(Debug_Status):
             print("X List: " + str(X_Arr))
