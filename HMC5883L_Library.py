@@ -83,29 +83,28 @@ def Average_Data(x, y, z):
         Z_Arr.append(z)
     else:
         # Adds value to list and recalculates average.
+        # X List
         if(len(X_Arr) < List_Length):
             X_Arr.append(x)
         X_Avg = round((float(sum(X_Arr)) / float(len(X_Arr))), 2)
-        if(Debug_Status):
-            print("X List: " + str(X_Arr))
-            print("X Average: " + str(X_Avg))
-            print("Out of tolerance X: " + str(X_Out_Of_Tolerance))
 
+        # Y List
         if(len(Y_Arr) < List_Length):
             Y_Arr.append(y)
         Y_Avg = round((float(sum(Y_Arr)) / float(len(Y_Arr))), 2)
-        if(Debug_Status):
-            print("Y List: " + str(Y_Arr))
-            print("Y Average: " + str(Y_Avg))
-            print("Out of tolerance Y: " + str(Y_Out_Of_Tolerance))
 
+        # Z List
         if(len(Z_Arr) < List_Length):
             Z_Arr.append(z)
         Z_Avg = round((float(sum(Z_Arr)) / float(len(Z_Arr))), 2)
+
         if(Debug_Status):
+            print("X List: " + str(X_Arr))
+            print("X Average: " + str(X_Avg))
+            print("Y List: " + str(Y_Arr))
+            print("Y Average: " + str(Y_Avg))
             print("Z List: " + str(Z_Arr))
             print("Z Average: " + str(Z_Avg))
-            print("Out of tolerance Z: " + str(Z_Out_Of_Tolerance))
 
 
 # Appends the Series parameter to the DataFrame parameter. Sorts updated DataFrame.
@@ -204,10 +203,10 @@ def Collect_Data():
             # Subtracts or adds average to the incoming data.
             z, b, c = Zero_Data(x, y, z)
             if(Debug_Status):
-                # print("Original")
+                print("Original")
                 print(x, y, z)
-                # print("Zeroed")
-                # print(a,b,c)
+                print("Zeroed")
+                print(a,b,c)
 
         # Adds new values to DataFrame, then sorts by index value.
         Append_Series_to_DataFrame(x, y, z, df, False)
@@ -450,8 +449,8 @@ def Settings_Config():
         print("--------------------------------------------------")
         print("SETTINGS MENU: ")
         print("")
-        print("System Speed: " + str(Iteration_Speed))
-        print("Change Speed? Y/n")
+        print("Refresh Rate: " + str(Iteration_Speed) + "Hz")
+        print("Change Rate? Y/n")
         Iteration_Speed = Update(input(), "Speed")
 
         print("Baudrate: " + str(Baud_Rate))
@@ -487,7 +486,7 @@ def Settings_Display():
     global Serial_Port
 
     print("\t\tCURRENT SETTINGS")
-    print("System Speed: " + str(Iteration_Speed))
+    print("Refresh Rate: " + str(Iteration_Speed) + "Hz")
     print("Baudrate: " + str(Baud_Rate))
     print("Serial Port: " + str(Serial_Port))
     print("Debug Status: " + str(Debug_Status))
