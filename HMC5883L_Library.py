@@ -226,6 +226,7 @@ def DataFrame_Plot(df, i):
 
     global Iteration_Amount
 
+    # If yes, it overlays the previous graph onto the current graph to better compare data. 
     print("Compare with previous graphs? Y/n")
     choice = input()
     if(choice != 'Y'):
@@ -276,7 +277,8 @@ def Save_To_File(df, Iteration):
     choice = input()
 
     if(choice == 'Y'):
-
+        
+        # Creates / Saves the DataFrame and its graph to a file.
         filename = "Trial:" + str(Iteration)
         path = r'/home/jared/Desktop/mfvd/Saves'
         df.to_csv(os.path.join(path, filename), header=True, sep='\t')

@@ -70,9 +70,8 @@ void Task_Main(void *parameter)
 }
 
 /**
- * Checks for serial input to be read in. Deciphers the message and assigns the message
+ * Checks for serial input to be non-empty. Deciphers the message and assigns the message
  *    to its appropirate location or variable.
- * Returns status: True if all info was recieved and ready to send data. False otherwise.
  */
 void Task_Serial_Read(void *parameter)
 {
@@ -81,12 +80,15 @@ void Task_Serial_Read(void *parameter)
   {
     if (Serial.available() && !Ready_To_Send)
     {
+      //Reads in the Delay Amount (Refresh Rate) from Jupyter.
       if (user.Delay_Amount == 0 || !Delay)
       {
         user.Delay_Amount = Serial.readString().toFloat();
         Delay = true;
         Serial_Clear();
       }
+
+      //Reads in Start Signal from Jupyter.
       else if (!Start_Signal)
       {
         String text = Serial.readString();
@@ -94,8 +96,10 @@ void Task_Serial_Read(void *parameter)
         Serial_Clear();
 
         //Signals to Jupyter to send Data_Type.
-        Serial.print(2);
+        Serial.print(1);
       }
+
+      //Reads iteration amount from Jupyter.
       else if (user.Iteration_Amount == 0 || !Iter)
       {
         user.Iteration_Amount = Serial.readString().toInt();
@@ -103,6 +107,7 @@ void Task_Serial_Read(void *parameter)
         Serial_Clear();
       }
 
+      //If all signals have been recieved, begins data transmission.
       if (Delay && Start_Signal && Iter)
       {
         Ready_To_Send = true;
@@ -132,7 +137,7 @@ void Reset()
  */
 void Send_Data()
 {
-
+  //Loops until correct amount of data has been sent over the serial port.
   for (int i = 0; i < user.Iteration_Amount; i++)
   {
 
@@ -152,11 +157,12 @@ void Send_Data()
     delay(user.Delay_Amount);
   }
 
+  //Signals the program has completed.
   Completed_Cycle = true;
 }
 
 /**
- * Clears the serial port.
+ * Clears the serial port by reading in all available data until empty.
  */
 void Serial_Clear()
 {
