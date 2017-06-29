@@ -184,12 +184,8 @@ def Collect_Data():
     # Builds 2nd Series.
     s2 = Series_Create("WHOLE")
 
-    # Creates dataframes with appropriate column names. Temperature comes across
-    #   the same as other Data Types, except the Y & Z columns are empty values.
-    if(Data_Type == "Temp"):
-        df = pd.DataFrame([list(s1), list(s2)],  columns=["TEMP", "Y", "Z"])
-    else:
-        df = pd.DataFrame([list(s1), list(s2)],  columns=["X", "Y", "Z"])
+    # Creates dataframes with appropriate column names. 
+    df = pd.DataFrame([list(s1), list(s2)],  columns=["X", "Y", "Z"])
 
     # Continuously read in values and appends to DataFrame for desired amount of iterations.
     #   Iteration_Amount - 12 due to the first two data points being used to create the
@@ -199,14 +195,11 @@ def Collect_Data():
         # Reads in current Orientation Data.
         x, y, z = Series_Create("SPLIT")
 
-        if(Data_Type != "Temp"):
-            # Subtracts or adds average to the incoming data.
-            z, b, c = Zero_Data(x, y, z)
-            if(Debug_Status):
-                print("Original")
-                print(x, y, z)
-                print("Zeroed")
-                print(a,b,c)
+        # Subtracts or adds average to the incoming data.
+        a, b, c = Zero_Data(x, y, z)
+        if(Debug_Status):
+            print("Original" + str(x,y,z))
+            print("Zeroed" + str(a,b,c))
 
         # Adds new values to DataFrame, then sorts by index value.
         Append_Series_to_DataFrame(x, y, z, df, False)
