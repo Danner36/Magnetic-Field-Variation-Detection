@@ -26,9 +26,10 @@ void setup()
 {
 
   Serial.begin(115200);
-  mag.begin();
+  delay(250);
 
-  delay(1000);
+  mag.begin();
+  delay(250);
 
   xTaskCreatePinnedToCore(Task_Serial_Read, "Task_Serial_Read", 10000, NULL, 1, NULL, 0);
 
@@ -38,29 +39,25 @@ void setup()
 /**
  * Program should never reach this point. 
  */
-void loop()
-{
+void loop(){
 
   delay(1000);
+
 }
 
 /**
  * Executes the main program.
  */
-void Task_Main(void *parameter)
-{
+void Task_Main(void *parameter){
 
-  while (1)
-  {
+  while (1){
 
-    if (Completed_Cycle)
-    {
+    if (Completed_Cycle){
       //Resets all global variables.
       Reset();
     }
 
-    if (Ready_To_Send)
-    {
+    if (Ready_To_Send){
       //Sends selected data type for a certain number of iterations.
       Send_Data();
     }
@@ -73,24 +70,21 @@ void Task_Main(void *parameter)
  * Checks for serial input to be non-empty. Deciphers the message and assigns the message
  *    to its appropirate location or variable.
  */
-void Task_Serial_Read(void *parameter)
-{
+void Task_Serial_Read(void *parameter){
 
-  while (1)
-  {
-    if (Serial.available() && !Ready_To_Send)
-    {
+  while (1){
+
+    if (Serial.available() && !Ready_To_Send){
+
       //Reads in the Delay Amount (Refresh Rate) from Jupyter.
-      if (user.Delay_Amount == 0 || !Delay)
-      {
+      if (user.Delay_Amount == 0 || !Delay){
         user.Delay_Amount = Serial.readString().toFloat();
         Delay = true;
         Serial_Clear();
       }
 
       //Reads in Start Signal from Jupyter.
-      else if (!Start_Signal)
-      {
+      else if (!Start_Signal){
         String text = Serial.readString();
         Start_Signal = true;
         Serial_Clear();
@@ -100,19 +94,18 @@ void Task_Serial_Read(void *parameter)
       }
 
       //Reads iteration amount from Jupyter.
-      else if (user.Iteration_Amount == 0 || !Iter)
-      {
+      else if (user.Iteration_Amount == 0 || !Iter){
         user.Iteration_Amount = Serial.readString().toInt();
         Iter = true;
         Serial_Clear();
       }
 
       //If all signals have been recieved, begins data transmission.
-      if (Delay && Start_Signal && Iter)
-      {
+      if (Delay && Start_Signal && Iter){
         Ready_To_Send = true;
         Serial_Clear();
       }
+
     }
     delay(100);
   }
@@ -121,8 +114,7 @@ void Task_Serial_Read(void *parameter)
 /**
  * Resets the program for next iteration.
  */
-void Reset()
-{
+void Reset(){
 
   user.Iteration_Amount = 0;
 
@@ -135,11 +127,10 @@ void Reset()
 /**
  * Prints to the serial port the desired data type from the BNO055 IMU.
  */
-void Send_Data()
-{
+void Send_Data(){
+
   //Loops until correct amount of data has been sent over the serial port.
-  for (int i = 0; i < user.Iteration_Amount; i++)
-  {
+  for (int i = 0; i < user.Iteration_Amount; i++){
 
     //Clears serial port of all unwanted or unneccessary information.
     Serial_Clear();
@@ -164,10 +155,11 @@ void Send_Data()
 /**
  * Clears the serial port by reading in all available data until empty.
  */
-void Serial_Clear()
-{
-  while (Serial.available())
-  {
+void Serial_Clear(){
+
+  while (Serial.available()){
+
     int junk = Serial.read();
+
   }
 }
