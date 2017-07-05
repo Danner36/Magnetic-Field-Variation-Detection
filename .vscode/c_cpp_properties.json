@@ -1,0 +1,17 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "/home/jared/Arduino/hardware/espressif/esp32/cores/esp32"
+            ],
+            "browse": {
+                "limitSymbolsToIncludedHeaders": false,
+                "path": [
+                    "/home/jared/Arduino/hardware/espressif/esp32/cores/esp32"
+                ]
+            },
+            "intelliSenseMode": "clang-x64"
+        }
+    ]
+}

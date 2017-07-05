@@ -9,11 +9,14 @@ import pylab
 ###   SETTINGS   ###
 
 
+#Operating System
+Operating_System = ""
+
 # Global serial communication line.
 ser = serial.Serial()
 
-# Speed at which the program will complete cycles.
-Iteration_Speed = 0.008
+# Speed at which the program will complete cycles. (Default 160Hz)
+Iteration_Speed = 0.00625
 
 # Baudrate setting used in creation of the serial communication line.
 Baud_Rate = 115200
@@ -67,9 +70,9 @@ def Average_Data(x, y, z):
     global List_Length
     global Debug_Status
 
-    x = float(x)
-    y = float(y)
-    z = float(z)
+    x = round(float(x),2)
+    y = round(float(y),2)
+    z = round(float(z),2)
 
     # Checks for empty lists and if so, assigns first set of values as averages.
     if(X_Avg == 0 or Y_Avg == 0 or Z_Avg == 0):
@@ -172,6 +175,11 @@ def Collect_Data():
     global ser
     global Iteration_Amount
     global List_Length
+    global Cycle_Count
+    
+    global X_Avg
+    global Y_Avg
+    global Z_Avg
 
     # Reads in a set amount of cycles to establish an average to later help zero out background noise.
     for i in range(0, List_Length - 1):
@@ -192,17 +200,21 @@ def Collect_Data():
     #   DataFrame and the added List_Length.
     this_iter = List_Length + 2
     while(this_iter < Iteration_Amount):
+        
         # Reads in current Orientation Data.
         x, y, z = Series_Create("SPLIT")
 
         # Subtracts or adds average to the incoming data.
         a, b, c = Zero_Data(x, y, z)
         if(Debug_Status):
-            print("Original" + str(x,y,z))
-            print("Zeroed" + str(a,b,c))
+            print(this_iter)
+            print("X_Avg:" + str(X_Avg) + " Y:" + str(Y_Avg) + " Z:" + str(Z_Avg))
+            print("Original " + "X:" + str(x) + " Y:" + str(y) + " Z:" + str(z))
+            print("Zeroed   " + "X:" + str(a) + " Y:" + str(b) + " Z:" + str(c))
+            print("--------------------------------------------------")
 
         # Adds new values to DataFrame, then sorts by index value.
-        Append_Series_to_DataFrame(x, y, z, df, False)
+        Append_Series_to_DataFrame(a, b, c, df, False)
 
         # Incrementing the iterator
         this_iter += 1
@@ -219,11 +231,12 @@ def DataFrame_Plot(df, i):
 
     global Iteration_Amount
 
-    # If yes, it overlays the previous graph onto the current graph to better compare data. 
-    print("Compare with previous graphs? Y/n")
-    choice = input()
-    if(choice != 'Y'):
-        plt.close()
+    if(i>0):
+        # Overlays the previous graph onto the current graph to better compare data. 
+        print("Compare with previous graphs? Y/n")
+        choice = input()
+        if(choice != 'Y'):
+            plt.close()
 
     plt.plot(df.X, label="X" + str(i))
     plt.plot(df.Y, label="Y" + str(i))
@@ -362,8 +375,8 @@ def Series_Create(text):
 
             elif(text == "WHOLE"):
                 x, y, z = line.split(",")
-                X, Y, Z = Zero_Data(x, y, z)
-                s = pd.Series([X, Y, Z])
+                a, b, c = Zero_Data(x, y, z)
+                s = pd.Series([a, b, c])
                 if(Debug_Status):
                     print("Series created from " + str(line))
                 return s
@@ -399,29 +412,45 @@ def Set_Debug():
 def Set_SerialPort():
 
     while(1):
-        print("Allowed Serial Ports: \tUSB0\tUSB1\tUSB2")
-        print("Please enter one of the above ports.")
-        port = input()
-
-        if(port == "USB0"):
-            print("\t\tSetting Updated")
-            print("--------------------------------------------------")
-            return '/dev/ttyUSB0'
-        elif(port == "USB1"):
-            print("\t\tSetting Updated")
-            print("--------------------------------------------------")
-            return '/dev/ttyUSB1'
-        elif(port == "USB2"):
-            print("\t\tSetting Updated")
-            print("--------------------------------------------------")
-            return '/dev/ttyUSB2'
-        else:
-            print("Invalid or wrong connection. Check your port!")
+        if(Operating_System == "Linux"):
+            print("Allowed Serial Ports: \tUSB0\tUSB1\tUSB2")
+            print("Please enter one of the above ports.")
+            port = input()
+                
+            if(port == "USB0"):
+                print("\t\tSetting Updated")
+                print("--------------------------------------------------")
+                return '/dev/ttyUSB0'
+            elif(port == "USB1"):
+                print("\t\tSetting Updated")
+                print("--------------------------------------------------")
+                return '/dev/ttyUSB1'
+            elif(port == "USB2"):
+                print("\t\tSetting Updated")
+                print("--------------------------------------------------")
+                return '/dev/ttyUSB2'
+            else:
+                print("Invalid or wrong connection. Check your port!")
+        elif(Operating_System == "Windows"):
+            print("Allowed Serial Ports: \tCOM0\tCOM1\tCOM2")
+            print("Please enter one of the above ports.")
+            port = input()
+                
+            if(port == "COM0" or "COM1" or "COM2" or "COM3"):
+                print("\t\tSetting Updated")
+                print("--------------------------------------------------")
+                return port
+            else:
+                print("Invalid or wrong connection. Check your port!")
 
 
 # Used to set the speed at which each cycle with execute within.
 def Set_System_Speed():
 
+    print("Ex: 0.0166  (60Hz)")
+    print("    0.0083  (120Hz)")
+    print("    0.008   (125Hz)")
+    print("    0.00625 (160Hz)")
     print("Enter new speed: ")
     choice = float(input())
     print("\t\tSetting Updated")
@@ -429,23 +458,30 @@ def Set_System_Speed():
     return choice
 
 
-# Used to setup the system settings.
+#Used to setup the system settings. 
 def Settings_Config():
-
+    
+    global Operating_System
     global Iteration_Speed
     global Debug_Status
     global Baud_Rate
     global Serial_Port
-
+    
     while(1):
-
+        
         clear_output()
-
+        
         print("--------------------------------------------------")
         print("SETTINGS MENU: ")
         print("")
-        print("Refresh Rate: " + str(Iteration_Speed) + "Hz")
-        print("Change Rate? Y/n")
+        
+        while(Operating_System != "Windows" and Operating_System != "Linux"): 
+            print("Select Windows or Linux")
+            Operating_System = input()
+            
+        print("--------------------------------------------------")        
+        print("System Speed: " + str(Iteration_Speed))
+        print("Change Speed? Y/n")
         Iteration_Speed = Update(input(), "Speed")
 
         print("Baudrate: " + str(Baud_Rate))
@@ -459,16 +495,16 @@ def Settings_Config():
         print("Debug Status: " + str(Debug_Status))
         print("Change Status? Y/n")
         Debug_Status = Update(input(), "Debug")
-
+        
         Settings_Display()
         print("Exit to Program (Exit) or Alter Settings (Alter)")
         choice = input()
-        if(choice == "Exit"):
-
-            # Establishes a serial communication line to the ESP32/IMU.
+        if(choice=="Exit"):
+                
+            #Establishes a serial communication line to the ESP32/IMU.
             Serial_Create()
-
-            Serial_Send(Iteration_Speed * 1000)
+            
+            Serial_Send(Iteration_Speed*1000)
             break
 
 
@@ -479,9 +515,11 @@ def Settings_Display():
     global Debug_Status
     global Baud_Rate
     global Serial_Port
-
+    global Operating_System
+    
     print("\t\tCURRENT SETTINGS")
-    print("Refresh Rate: " + str(Iteration_Speed) + "Hz")
+    print("Operating System: " + str(Operating_System))
+    print("System Speed: " + str(Iteration_Speed))
     print("Baudrate: " + str(Baud_Rate))
     print("Serial Port: " + str(Serial_Port))
     print("Debug Status: " + str(Debug_Status))
