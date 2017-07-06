@@ -1,6 +1,8 @@
 {
     "files.associations": {
         "array": "cpp",
-        "initializer_list": "cpp"
+        "initializer_list": "cpp",
+        "esp32-hal-gpio.c": "cpp",
+        "esp32-hal-misc.c": "cpp"
     }
 }

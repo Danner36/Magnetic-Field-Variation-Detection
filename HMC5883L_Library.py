@@ -15,9 +15,6 @@ Operating_System = ""
 # Global serial communication line.
 ser = serial.Serial()
 
-# Speed at which the program will complete cycles. (Default 160Hz)
-Iteration_Speed = 0.00625
-
 # Baudrate setting used in creation of the serial communication line.
 Baud_Rate = 115200
 
@@ -26,12 +23,6 @@ Serial_Port = '/dev/ttyUSB0'
 
 # Set to True to print out extra information in certain methods.
 Debug_Status = False
-
-# Holds previous data type. Used to compare graphs of similar types if taken in series.
-Previous_Data_Type = ""
-
-# Holds current data type the user inputs.
-Data_Type = ""
 
 # Holds the amount of iterations the user inputs.
 Iteration_Amount = 0
@@ -49,7 +40,7 @@ Z_Arr = []
 Z_Avg = None
 
 # Length of the list used to create and hold the average values.
-List_Length = 10
+List_Length = 200
 
 
 ###   FUNCTIONS   ###
@@ -183,9 +174,14 @@ def Collect_Data():
 
     # Reads in a set amount of cycles to establish an average to later help zero out background noise.
     for i in range(0, List_Length - 1):
-        x, y, z = Series_Create("SPLIT")
-        Average_Data(x, y, z)
-
+        if(i>List_Length/2):
+            print(i)
+            x, y, z = Series_Create("SPLIT")
+            Average_Data(x, y, z)
+        else:
+            print(i)
+        print("--------------------------------------------------")
+    
     # Builds 1st Series.
     s1 = Series_Create("WHOLE")
 
@@ -201,16 +197,17 @@ def Collect_Data():
     this_iter = List_Length + 2
     while(this_iter < Iteration_Amount):
         
+        if(Debug_Status):
+            print("#:" + str(this_iter))
         # Reads in current Orientation Data.
         x, y, z = Series_Create("SPLIT")
 
         # Subtracts or adds average to the incoming data.
         a, b, c = Zero_Data(x, y, z)
         if(Debug_Status):
-            print(this_iter)
-            print("X_Avg:" + str(X_Avg) + " Y:" + str(Y_Avg) + " Z:" + str(Z_Avg))
-            print("Original " + "X:" + str(x) + " Y:" + str(y) + " Z:" + str(z))
-            print("Zeroed   " + "X:" + str(a) + " Y:" + str(b) + " Z:" + str(c))
+            print("Averages " + "X:" + str(X_Avg) + "  Y:" + str(Y_Avg) + "  Z:" + str(Z_Avg))
+            print("Original " + "X:" + str(x) + "  Y:" + str(y) + "  Z:" + str(z))
+            print("Zeroed   " + "X:" + str(a) + "  Y:" + str(b) + "  Z:" + str(c))
             print("--------------------------------------------------")
 
         # Adds new values to DataFrame, then sorts by index value.
@@ -362,7 +359,7 @@ def Series_Create(text):
     global debug
 
     if(Debug_Status):
-        print("")
+        print("--------------------------------------------------")
         print("Waiting to create series")
 
     while(1):
@@ -444,25 +441,10 @@ def Set_SerialPort():
                 print("Invalid or wrong connection. Check your port!")
 
 
-# Used to set the speed at which each cycle with execute within.
-def Set_System_Speed():
-
-    print("Ex: 0.0166  (60Hz)")
-    print("    0.0083  (120Hz)")
-    print("    0.008   (125Hz)")
-    print("    0.00625 (160Hz)")
-    print("Enter new speed: ")
-    choice = float(input())
-    print("\t\tSetting Updated")
-    print("--------------------------------------------------")
-    return choice
-
-
 #Used to setup the system settings. 
 def Settings_Config():
     
     global Operating_System
-    global Iteration_Speed
     global Debug_Status
     global Baud_Rate
     global Serial_Port
@@ -478,11 +460,8 @@ def Settings_Config():
         while(Operating_System != "Windows" and Operating_System != "Linux"): 
             print("Select Windows or Linux")
             Operating_System = input()
-            
-        print("--------------------------------------------------")        
-        print("System Speed: " + str(Iteration_Speed))
-        print("Change Speed? Y/n")
-        Iteration_Speed = Update(input(), "Speed")
+        print("\t\tSetting Updated")
+        print("--------------------------------------------------")
 
         print("Baudrate: " + str(Baud_Rate))
         print("Change Baudrate? Y/n")
@@ -503,15 +482,12 @@ def Settings_Config():
                 
             #Establishes a serial communication line to the ESP32/IMU.
             Serial_Create()
-            
-            Serial_Send(Iteration_Speed*1000)
             break
 
 
 # Displays all current settings, their values, and or their status.
 def Settings_Display():
 
-    global Iteration_Speed
     global Debug_Status
     global Baud_Rate
     global Serial_Port
@@ -519,7 +495,6 @@ def Settings_Display():
     
     print("\t\tCURRENT SETTINGS")
     print("Operating System: " + str(Operating_System))
-    print("System Speed: " + str(Iteration_Speed))
     print("Baudrate: " + str(Baud_Rate))
     print("Serial Port: " + str(Serial_Port))
     print("Debug Status: " + str(Debug_Status))
@@ -531,10 +506,9 @@ def Settings_Display():
 #   parameter Iteration_Speed: Time taken to complete one cycle.
 def Time_Until_Done():
 
-    global Iteration_Speed
     global Iteration_Amount
 
-    Total_Time = (Iteration_Amount * Iteration_Speed)
+    Total_Time = (Iteration_Amount * 0.00625)
 
     hours = 0
     minutes = 0
@@ -574,18 +548,11 @@ def Time_Until_Done():
 
 def Update(System_Change, Origin):
 
-    global Iteration_Speed
     global Debug_Status
     global Baud_Rate
     global Serial_Port
 
-    if(Origin == "Speed"):
-        if(System_Change == 'Y'):
-            return Set_System_Speed()
-        else:
-            print("--------------------------------------------------")
-            return Iteration_Speed
-    elif(Origin == "Baud"):
+    if(Origin == "Baud"):
         if(System_Change == 'Y'):
             return Set_Baudrate()
         else:
