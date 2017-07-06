@@ -174,13 +174,16 @@ def Collect_Data():
 
     # Reads in a set amount of cycles to establish an average to later help zero out background noise.
     for i in range(0, List_Length - 1):
+        x, y, z = Series_Create("SPLIT")
         if(i>List_Length/2):
-            print(i)
-            x, y, z = Series_Create("SPLIT")
             Average_Data(x, y, z)
+            if(Debug_Status):
+                print(i)
         else:
-            print(i)
-        print("--------------------------------------------------")
+            if(Debug_Status):
+                print(i)
+        if(Debug_Status):
+            print("--------------------------------------------------")
     
     # Builds 1st Series.
     s1 = Series_Create("WHOLE")
@@ -232,13 +235,29 @@ def DataFrame_Plot(df, i):
         # Overlays the previous graph onto the current graph to better compare data. 
         print("Compare with previous graphs? Y/n")
         choice = input()
+        #Delete/close the previous graph and display the new one.
         if(choice != 'Y'):
             plt.close()
+            
+            plt.plot(df.X, label="X-axis")
+            plt.plot(df.Y, label="Y-axis")
+            plt.plot(df.Z, label="Z-axis")
+        #Overlay the new graph ontop of the old for comparison. 
+        else:
+            plt.plot(df.X, label="X-axis " + str(i))
+            plt.plot(df.Y, label="Y-axis " + str(i))
+            plt.plot(df.Z, label="Z-axis " + str(i))
+    else:
+        plt.plot(df.X, label="X-axis")
+        plt.plot(df.Y, label="Y-axis")
+        plt.plot(df.Z, label="Z-axis")
+    
+    #Attach axis and title labels.
+    plt.ylabel("microTesla (uT)")
+    plt.xlabel("Data Points")
+    plt.title("POWER LINE DETECTION TRIAL #" + str(i))
 
-    plt.plot(df.X, label="X" + str(i))
-    plt.plot(df.Y, label="Y" + str(i))
-    plt.plot(df.Z, label="Z" + str(i))
-
+    #Attach legend box to the top right of graph.
     plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.0)
     print("--------------------------------------------------")
 
@@ -368,6 +387,7 @@ def Series_Create(text):
             if(text == "SPLIT"):
                 if(Debug_Status):
                     print("Series created from " + str(line))
+                    print("")
                 return line.split(",")
 
             elif(text == "WHOLE"):
@@ -376,6 +396,10 @@ def Series_Create(text):
                 s = pd.Series([a, b, c])
                 if(Debug_Status):
                     print("Series created from " + str(line))
+                    print("")
+                    print("Averages " + "X:" + str(X_Avg) + "  Y:" + str(Y_Avg) + "  Z:" + str(Z_Avg))
+                    print("Original " + "X:" + str(x) + "  Y:" + str(y) + "  Z:" + str(z))
+                    print("Zeroed   " + "X:" + str(a) + "  Y:" + str(b) + "  Z:" + str(c))
                 return s
 
 
