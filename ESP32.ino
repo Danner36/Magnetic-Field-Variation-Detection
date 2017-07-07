@@ -95,21 +95,13 @@ void Task_Main(void *parameter){
 
     if (Ready_To_Send){
 
-      //Sends selected data type for a certain number of iterations
-      //  when interrupt wire is brought HIGH signalling full
-      //  registers on the HMC5883L.
-      attachInterrupt(16, Send_Data, RISING);
-
       while(user.this_iter<user.Iteration_Amount){
-        //Cycles until the set amount of data points has been reached. 
-        //   user.this_iter is incremented in Send_Data which, right
-        //   above is attached to an interrupt pin on the HMC5883L.
-        //   This pin triggers when the output data registers are full.
-        //   This allows for ~160Hz DOR.
+        
+        Send_Data();
+        delay(6.25);
 
       }
 
-      detachInterrupt(16);
       //Signals the program has completed.
       Completed_Cycle = true;
 
@@ -160,15 +152,8 @@ void Task_Serial_Read(void *parameter){
         Serial_Clear();
       }
 
-      delay(100);
-
     }
-    //Delays 10 seconds while HMC5883L writes to Jupyter.
-    else{
-
-      delay(10000);
-
-    }
+    delay(100);
   }
 }
 
@@ -213,7 +198,7 @@ void readMag() {
 void Reset(){
 
   user.Iteration_Amount = 0;
-
+  user.this_iter = 0;
   Iter = false;
   Start_Signal = false;
   Ready_To_Send = false;

@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import os
 import pandas as pd
+from random import randint
 import serial
 from IPython.display import clear_output
 import pylab
@@ -42,6 +43,8 @@ Z_Avg = None
 # Length of the list used to create and hold the average values.
 List_Length = 200
 
+#File name generated at random to better catalog results.
+File_Number = 0
 
 ###   FUNCTIONS   ###
 
@@ -195,8 +198,8 @@ def Collect_Data():
     df = pd.DataFrame([list(s1), list(s2)],  columns=["X", "Y", "Z"])
 
     # Continuously read in values and appends to DataFrame for desired amount of iterations.
-    #   Iteration_Amount - 12 due to the first two data points being used to create the
-    #   DataFrame and the added List_Length.
+    #   Iteration_Amount - Amount selected by user. 
+    #   this_iter - List Length & first two series right above.
     this_iter = List_Length + 2
     while(this_iter < Iteration_Amount):
         
@@ -220,6 +223,7 @@ def Collect_Data():
         this_iter += 1
 
     # Returns completed dataframe
+    df = df.sort_index(ascending = False)
     return df
 
 
@@ -230,32 +234,24 @@ def Collect_Data():
 def DataFrame_Plot(df, i):
 
     global Iteration_Amount
+    global File_Number
+    
+    #Generates random number to be used for identification.
+    File_Number = randint(0,10000)
 
+    #Closes previous instance of plt.
     if(i>0):
-        # Overlays the previous graph onto the current graph to better compare data. 
-        print("Compare with previous graphs? Y/n")
-        choice = input()
-        #Delete/close the previous graph and display the new one.
-        if(choice != 'Y'):
-            plt.close()
-            
-            plt.plot(df.X, label="X-axis")
-            plt.plot(df.Y, label="Y-axis")
-            plt.plot(df.Z, label="Z-axis")
-        #Overlay the new graph ontop of the old for comparison. 
-        else:
-            plt.plot(df.X, label="X-axis " + str(i))
-            plt.plot(df.Y, label="Y-axis " + str(i))
-            plt.plot(df.Z, label="Z-axis " + str(i))
-    else:
-        plt.plot(df.X, label="X-axis")
-        plt.plot(df.Y, label="Y-axis")
-        plt.plot(df.Z, label="Z-axis")
+        plt.close()
+          
+    #Plot x,y,z axes.    
+    plt.plot(df.X, label="X-axis")
+    #plt.plot(df.Y, label="Y-axis")
+    #plt.plot(df.Z, label="Z-axis")
     
     #Attach axis and title labels.
     plt.ylabel("microTesla (uT)")
-    plt.xlabel("Data Points")
-    plt.title("POWER LINE DETECTION TRIAL #" + str(i))
+    plt.xlabel("Time (160Hz) (6.25x10^-3(s))")
+    plt.title("POWER LINE DETECTION TRIAL #" + str(File_Number))
 
     #Attach legend box to the top right of graph.
     plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.0)
@@ -284,8 +280,14 @@ def Prompt_Iteration_Amount(Iteration):
 
     # Prompts user to enter an amount of data points.
     print("Enter desired data points: ")
-    # 10 is added to get the average before the data is considered "real"
-    Iteration_Amount = int(input()) + List_Length
+    # List_Length is added to get the average before the data is considered "real"
+    while(1):
+        choice = int(input())
+        if(isinstance(choice, int)):
+            Iteration_Amount = choice + List_Length
+            break
+        else:
+            print("Enter a integer type")
     print("--------------------------------------------------")
 
 
@@ -293,19 +295,17 @@ def Prompt_Iteration_Amount(Iteration):
 #   Parameter df: DataFrame to be saved.
 #   Parameter Data_Type: Type of Data collected. For Documentation purposes.
 #   Parameter Iteration: Current cycle of program. Used for documentation.
-def Save_To_File(df, Iteration):
+def Save_To_File(df):
 
-    print("Save to File? Y/n")
-    choice = input()
-
-    if(choice == 'Y'):
+    global File_Number
+    
+    print("Saved #" + str(File_Number) + " in: " + "/home/jared/Desktop/mfvd/Saves")
         
-        # Creates / Saves the DataFrame and its graph to a file.
-        filename = "Trial:" + str(Iteration)
-        path = r'/home/jared/Desktop/mfvd/Saves'
-        df.to_csv(os.path.join(path, filename), header=True, sep='\t')
-        pylab.savefig(os.path.join(path, filename),
-                      bbox_inches='tight', pad_inches=0.5)
+    # Creates / Saves the DataFrame and its graph to a file.
+    filename = "Trial:" + str(File_Number)
+    path = r'/home/jared/Desktop/mfvd/Saves'
+    df.to_csv(os.path.join(path, filename), header=True, sep='\t')
+    pylab.savefig(os.path.join(path, filename), bbox_inches='tight', pad_inches=0.5)
 
     print("--------------------------------------------------")
 
@@ -320,6 +320,14 @@ def Serial_Clear():
         junk = ser.readline().decode()
         if(Debug_Status):
             print("Cleared: " + str(junk))
+            
+
+#Closes the serial port.
+def Serial_Close():
+    
+    global ser
+    
+    ser.close()
 
 
 # Configures and opens a serical communication line.
@@ -425,7 +433,10 @@ def Set_Debug():
 
     print("\t\tSetting Updated")
     print("--------------------------------------------------")
-    return True
+    if(Debug_Status):
+        return False
+    else:
+        return True
 
 
 # Prompts the user to enter a serial port to be used in serial communication.
