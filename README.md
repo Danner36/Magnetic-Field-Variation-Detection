@@ -1,10 +1,10 @@
 # README #
     Last Updated:
-    7/6/17 @ 2:00pm
+    7/7/17 @ 1:10pm
 
 ### Repository Info ###
     Development Status: ACTIVE
-    Version: 1.0c (UNSTABLE)
+    Version: 1.1 (STABLE)
 
     Main: ESP32 Development Board
     Periphials: HMC5883L Magnetometer
