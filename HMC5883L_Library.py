@@ -1,7 +1,10 @@
-import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt1
+import matplotlib.pyplot as plt2
+import numpy as np
 import os
 import pandas as pd
 from random import randint
+import scipy.fftpack
 import serial
 from IPython.display import clear_output
 import pylab
@@ -236,34 +239,76 @@ def DataFrame_Plot(df, i):
     global Iteration_Amount
     global File_Number
     
-    #Generates random number to be used for identification.
+    # Generates random number to be used for identification.
     File_Number = randint(0,10000)
 
-    #Closes previous instance of plt.
+    # Closes previous instance of plt.
     if(i>0):
-        plt.close()
+        plt1.close()
           
-    #Plot x,y,z axes.    
-    plt.plot(df.X, label="X-axis")
-    #plt.plot(df.Y, label="Y-axis")
-    #plt.plot(df.Z, label="Z-axis")
+    # Plot x,y,z axes.    
+    plt1.plot(df.X, label="X-axis")
+    plt1.plot(df.Y, label="Y-axis")
+    plt1.plot(df.Z, label="Z-axis")
     
-    #Attach axis and title labels.
-    plt.ylabel("microTesla (uT)")
-    plt.xlabel("Time (160Hz) (6.25x10^-3(s))")
-    plt.title("POWER LINE DETECTION TRIAL #" + str(File_Number))
+    # Attach axis and title labels.
+    plt1.ylabel("microTesla (uT)")
+    plt1.xlabel("Time (160Hz) (6.25x10^-3(s))")
+    plt1.title("POWER LINE DETECTION TRIAL #" + str(File_Number))
 
     #Attach legend box to the top right of graph.
-    plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.0)
+    plt1.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.0)
+    
+    # Creates / Saves the DataFrame's graph to a file.
+    print("Saved #" + str(File_Number) + " in: " + "/home/jared/Desktop/mfvd/Saves")
+    filename = "Trial :" + str(File_Number)
+    path = r'/home/jared/Desktop/mfvd/Saves'
+    df.to_csv(os.path.join(path, filename), header=True, sep='\t')
+    pylab.savefig(os.path.join(path, filename), bbox_inches='tight', pad_inches=0.5)
+    
+    plt1.show()
+    
     print("--------------------------------------------------")
 
+    
+# Applys Fast Fourier Transform to 60Hz signal at 160Hz sampling rate.
+#   Allows for signal indication further from the 60Hz wire by integrating
+#   it back upon itself.
+def DataFrame_Plot_FFT(df,i):
+    
+    global File_Number
+    global Iteration_Amount
+    
+    # Closes previous instance of plt.
+    if(i>0):
+        plt2.close()
 
+    df_fft = abs(np.fft.fft(df.Z))
+    plt2.plot(df_fft)
+    
+    # Attach axis and title labels.
+    plt2.ylabel("Gain (dB)")
+    plt2.xlabel("Frequency (Hz)")
+    plt2.title("FFT #" + str(File_Number))
+    
+    # Creates / Saves the DataFrame's graph to a file.
+    print("Saved #" + str(File_Number) + " in: " + "/home/jared/Desktop/mfvd/Saves")
+    filename = "Trial :" + str(File_Number) + " FFT"
+    path = r'/home/jared/Desktop/mfvd/Saves'
+    pylab.savefig(os.path.join(path, filename), bbox_inches='tight', pad_inches=0.5)
+    
+    plt2.show()
+    
+    print("--------------------------------------------------")
+    
+    
 # Prints out entire dataframe to screen.
 #   Parameter df: DataFrame to be printed.
 def DataFrame_Print(df):
 
     # Print DataFrame.
     print(df)
+    print("--------------------------------------------------")
 
 
 # Prompts the user to input an amount of data points they want gathered
@@ -288,25 +333,6 @@ def Prompt_Iteration_Amount(Iteration):
             break
         else:
             print("Enter a integer type")
-    print("--------------------------------------------------")
-
-
-# Converts completed DataFrame and graph to csv file.
-#   Parameter df: DataFrame to be saved.
-#   Parameter Data_Type: Type of Data collected. For Documentation purposes.
-#   Parameter Iteration: Current cycle of program. Used for documentation.
-def Save_To_File(df):
-
-    global File_Number
-    
-    print("Saved #" + str(File_Number) + " in: " + "/home/jared/Desktop/mfvd/Saves")
-        
-    # Creates / Saves the DataFrame and its graph to a file.
-    filename = "Trial:" + str(File_Number)
-    path = r'/home/jared/Desktop/mfvd/Saves'
-    df.to_csv(os.path.join(path, filename), header=True, sep='\t')
-    pylab.savefig(os.path.join(path, filename), bbox_inches='tight', pad_inches=0.5)
-
     print("--------------------------------------------------")
 
 
