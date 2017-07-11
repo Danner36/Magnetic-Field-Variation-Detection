@@ -13,7 +13,7 @@ import pylab
 ###   SETTINGS   ###
 
 
-#Operating System
+#Operating System beign used. (Windows or Linux) Used to create a serial port.
 Operating_System = ""
 
 # Global serial communication line.
@@ -22,7 +22,7 @@ ser = serial.Serial()
 # Baudrate setting used in creation of the serial communication line.
 Baud_Rate = 115200
 
-# Port setting used in creation of the serial communcation line.
+# Port setting used in creation of the serial communcation line. (Defaulted to Linux)
 Serial_Port = '/dev/ttyUSB0'
 
 # Set to True to print out extra information in certain methods.
@@ -31,28 +31,31 @@ Debug_Status = False
 # Holds the amount of iterations the user inputs.
 Iteration_Amount = 0
 
-# Axis_X average taken over 10 most previous cycles within +-5.
+# Array of length (List_Length) used to create average later used to zero out data.
 X_Arr = []
 X_Avg = None
 
-# Axis-Y average taken over 10 most previous cycles within +-5.
+# Array of length (List_Length) used to create average later used to zero out data.
 Y_Arr = []
 Y_Avg = None
 
-# Axis-Z average taken over 10 most previous cycles within +-5.
+# Array of length (List_Length) used to create average later used to zero out data.
 Z_Arr = []
 Z_Avg = None
 
-# Length of the list used to create and hold the average values.
+# Length of the list used to create and hold the average values. Secondary purpose is to 
+#   make sure no real data is recorded until the sensor is calibrated or out of the transient state.
 List_Length = 200
 
-#File name generated at random to better catalog results.
+# File name generated at random to better catalog results.
 File_Number = 0
+
 
 ###   FUNCTIONS   ###
 
 
-# Reads in 10 data cycles to obtain average.
+# Reads in a set amount of data cycles at the beginning of the program to set the average 
+#   for each the X, Y, and Z axes.
 def Average_Data(x, y, z):
 
     global X_Arr
@@ -107,8 +110,8 @@ def Average_Data(x, y, z):
             print("Z Average: " + str(Z_Avg))
 
 
-# Appends the Series parameter to the DataFrame parameter. Sorts updated DataFrame.
-#   Parameter x,y,z: values to be entered into the DataFrame.
+# Appends the axis parameters to the DataFrame parameter. Sorts updated DataFrame.
+#   Parameter x,y,z: Values to be entered into the DataFrame.
 #   Parameter df: DataFrame
 #   Parameter direction: True = acsending order / False = decsending order
 #   Returns df: Updated DataFrame
@@ -122,9 +125,8 @@ def Append_Series_to_DataFrame(x, y, z, df, direction):
 
 
 # Establishes a communication channel with the microcontroller.
-#   Transfers data type and iteration amount to microcontroller.
-#   Parameter Iteration_Amount: amount of data points to collect.
-#   Parameter Data_Type: type of data to collect.
+#   Meant to be run at beginning of cycle. Communicates the iteration's
+#   desired amount of data. NOTE: Time_Until_Done is a rough estimation. 
 def Begin_Signal():
 
     global ser
@@ -166,7 +168,7 @@ def Begin_Signal():
 
 
 # Reads in data from ESP32 over the serial port defined below.
-#   Returns df: Created DataFrame from recorded data points.
+#   Returns df: Completed DataFrame from recorded data points.
 def Collect_Data():
 
     global ser
@@ -178,9 +180,17 @@ def Collect_Data():
     global Y_Avg
     global Z_Avg
 
-    # Reads in a set amount of cycles to establish an average to later help zero out background noise.
+    # Reads in a set amount of cycles to do both establish an average
+    #   to zero out data, and exclude the uncalibrated data from the program.
     for i in range(0, List_Length - 1):
+        
+        # Reads in a string of 3 floats seperates by commas.
         x, y, z = Series_Create("SPLIT")
+        
+        # To exclude the transient repsonse from the average, the program only formulates
+        #   the average based on the 2nd half of the length of List_Length. 
+        #   EXAMPLE: List_Length = 200 so it will discard the first 100 values and form an
+        #            average with the last 100.
         if(i>List_Length/2):
             Average_Data(x, y, z)
             if(Debug_Status):
@@ -197,35 +207,37 @@ def Collect_Data():
     # Builds 2nd Series.
     s2 = Series_Create("WHOLE")
 
-    # Creates dataframes with appropriate column names. 
+    # Creates dataframes with appropriate column names from above  series.
     df = pd.DataFrame([list(s1), list(s2)],  columns=["X", "Y", "Z"])
 
-    # Continuously read in values and appends to DataFrame for desired amount of iterations.
+    # Continuously reads in values and appends to DataFrame for desired amount of iterations.
     #   Iteration_Amount - Amount selected by user. 
-    #   this_iter - List Length & first two series right above.
+    #   this_iter - Summation of List_Length and 2 (due to the first two values used to form the above series.
     this_iter = List_Length + 2
     while(this_iter < Iteration_Amount):
         
         if(Debug_Status):
             print("#:" + str(this_iter))
-        # Reads in current Orientation Data.
+            
+        # Reads in a string of 3 floats seperates by commas.
         x, y, z = Series_Create("SPLIT")
 
         # Subtracts or adds average to the incoming data.
         a, b, c = Zero_Data(x, y, z)
+        
         if(Debug_Status):
             print("Averages " + "X:" + str(X_Avg) + "  Y:" + str(Y_Avg) + "  Z:" + str(Z_Avg))
             print("Original " + "X:" + str(x) + "  Y:" + str(y) + "  Z:" + str(z))
             print("Zeroed   " + "X:" + str(a) + "  Y:" + str(b) + "  Z:" + str(c))
             print("--------------------------------------------------")
 
-        # Adds new values to DataFrame, then sorts by index value.
+        # Adds new values to DataFrame, then sorts by index value. False = decsending.
         Append_Series_to_DataFrame(a, b, c, df, False)
 
         # Incrementing the iterator
         this_iter += 1
 
-    # Returns completed dataframe
+    # Sorts dataframe to make sure n and n-1 indexes are correct.
     df = df.sort_index(ascending = False)
     return df
 
@@ -233,7 +245,7 @@ def Collect_Data():
 # Plots dataframe's X,Y,Z on a horizontal line graph.
 #   Expected dataframe to have 3 axis worth of data labelled 'X,Y,Z'.
 #   Parameter df: DataFrame to be graphed.
-#   Paramter i: Iteration Count for the entire program. Allows for each test to have unique label.
+#   Paramter i: Iteration Count for the entire program.
 def DataFrame_Plot(df, i):
 
     global Iteration_Amount
@@ -242,11 +254,11 @@ def DataFrame_Plot(df, i):
     # Generates random number to be used for identification.
     File_Number = randint(0,10000)
 
-    # Closes previous instance of plt.
+    # Closes previous instance of plt if beyond first iteration.
     if(i>0):
         plt1.close()
           
-    # Plot x,y,z axes.    
+    # Plot x,y,z axes.
     plt1.plot(df.X, label="X-axis")
     plt1.plot(df.Y, label="Y-axis")
     plt1.plot(df.Z, label="Z-axis")
@@ -261,11 +273,15 @@ def DataFrame_Plot(df, i):
     
     # Creates / Saves the DataFrame's graph to a file.
     print("Saved #" + str(File_Number) + " in: " + "/home/jared/Desktop/mfvd/Saves")
+    # Name of file.
     filename = "Trial :" + str(File_Number)
+    # Path to be saved to.
     path = r'/home/jared/Desktop/mfvd/Saves'
+    # Saves the DataFrame as a CSV file.
     df.to_csv(os.path.join(path, filename), header=True, sep='\t')
+    # Grabs the plot created by (plt2) and sticks into designated path.
     pylab.savefig(os.path.join(path, filename), bbox_inches='tight', pad_inches=0.5)
-    
+    # Displays plot to screen. (If wanting to save the graph, this has to be called after the save is complete.)
     plt1.show()
     
     print("--------------------------------------------------")
@@ -276,6 +292,10 @@ def DataFrame_Plot(df, i):
 #   it back upon itself.
 def DataFrame_Plot_FFT(df,i):
     
+    
+    #THIS METHOD WAS MEANT TO GRAPH THE INCOMING SIGNAL'S FREQUENCY. NOT CURRENTLY WORKING AS INTENDED.
+    
+    
     global File_Number
     global Iteration_Amount
     
@@ -283,20 +303,25 @@ def DataFrame_Plot_FFT(df,i):
     if(i>0):
         plt2.close()
 
-    df_fft = abs(np.fft.fft(df.Z))
-    plt2.plot(df_fft)
+    fftres = np.fft.fft(df.values)
+    #fftres = np.fft.fft(df.X)
+    plt2.plot(fftres)
     
     # Attach axis and title labels.
-    plt2.ylabel("Gain (dB)")
+    plt2.title("Magnitude Spectrum of the Signal #" + str(File_Number))
+    #Unsure of corrent units.
+    plt2.ylabel("Magnitude")
     plt2.xlabel("Frequency (Hz)")
-    plt2.title("FFT #" + str(File_Number))
     
     # Creates / Saves the DataFrame's graph to a file.
     print("Saved #" + str(File_Number) + " in: " + "/home/jared/Desktop/mfvd/Saves")
+    # Name of file.
     filename = "Trial :" + str(File_Number) + " FFT"
+    # Path to be saved to.
     path = r'/home/jared/Desktop/mfvd/Saves'
+    # Grabs the plot created by (plt2) and sticks into designated path.
     pylab.savefig(os.path.join(path, filename), bbox_inches='tight', pad_inches=0.5)
-    
+    # Displays plot to screen. (If wanting to save the graph, this has to be called after the save is complete.)
     plt2.show()
     
     print("--------------------------------------------------")
@@ -325,10 +350,12 @@ def Prompt_Iteration_Amount(Iteration):
 
     # Prompts user to enter an amount of data points.
     print("Enter desired data points: ")
-    # List_Length is added to get the average before the data is considered "real"
+    
     while(1):
         choice = int(input())
         if(isinstance(choice, int)):
+            # List_Length is tacked on to be able to form an average 
+            #   and still recieve required amount.
             Iteration_Amount = choice + List_Length
             break
         else:
@@ -342,8 +369,12 @@ def Serial_Clear():
     global debug
     global ser
 
+    #Checks if serial port is empty.
     if(ser.in_waiting != 0):
+        
+        #If not, reads in until empty.
         junk = ser.readline().decode()
+        
         if(Debug_Status):
             print("Cleared: " + str(junk))
             
@@ -363,6 +394,7 @@ def Serial_Create():
     global Serial_Port
     global Baud_Rate
 
+    #Establishes serial port if not already open.
     if(ser.is_open == False):
         ser.port = Serial_Port
         ser.baudrate = Baud_Rate
@@ -371,7 +403,7 @@ def Serial_Create():
 
 
 # Reads in 1 bit values on the serial communication line.
-#   Returns prompt: Input read in from serial line.
+#   Returns message: Input read in from serial line.
 def Serial_Recieve():
 
     global debug
@@ -379,12 +411,12 @@ def Serial_Recieve():
 
     while(1):
         if(ser.in_waiting != 0):
-            prompt = ser.read().decode()
+            message = ser.read().decode()
 
             if(Debug_Status):
-                print("Received: " + str(prompt))
+                print("Received: " + str(message))
             break
-    return prompt
+    return message
 
 
 # Sends given message over serial port.
@@ -394,18 +426,20 @@ def Serial_Send(message):
     global debug
     global ser
 
+    #Converts to string for easier decoding on ESP32.
     message = str(message)
 
     if(Debug_Status):
         print("Sending: " + str(message))
 
+    #Due to message being of type string, needs to be encoded.
     ser.write(message.encode())
 
 
 # Waits for data to be present on the serial port. Reads in and creates Series once present.
-#   Parameter ser: serial communication line.
+#   Parameter text: Used to indicate if series is wanted, or individual floats.
 #   Returns s: Created Series.
-#   Returns line.split(","): Individual variables.
+#   Returns line.split(","): Individual variables x,y,z.
 def Series_Create(text):
 
     global ser
@@ -416,8 +450,11 @@ def Series_Create(text):
         print("Waiting to create series")
 
     while(1):
+        
+        #Checks for non-empty serial port.
         if(ser.in_waiting != 0):
             line = ser.readline().decode()
+            
             if(text == "SPLIT"):
                 if(Debug_Status):
                     print("Series created from " + str(line))
@@ -426,8 +463,10 @@ def Series_Create(text):
 
             elif(text == "WHOLE"):
                 x, y, z = line.split(",")
+                # Zeros data to better show alterations in variation.
                 a, b, c = Zero_Data(x, y, z)
                 s = pd.Series([a, b, c])
+                
                 if(Debug_Status):
                     print("Series created from " + str(line))
                     print("")
@@ -502,7 +541,7 @@ def Set_SerialPort():
                 print("Invalid or wrong connection. Check your port!")
 
 
-#Used to setup the system settings. 
+#Used in setup of the system settings. 
 def Settings_Config():
     
     global Operating_System
@@ -512,36 +551,43 @@ def Settings_Config():
     
     while(1):
         
+        #Clears screen of all previous output.
         clear_output()
         
         print("--------------------------------------------------")
         print("SETTINGS MENU: ")
         print("")
         
+        #Prompts user for selection of OS. 
         while(Operating_System != "Windows" and Operating_System != "Linux"): 
             print("Select Windows or Linux")
             Operating_System = input()
+            
         print("\t\tSetting Updated")
         print("--------------------------------------------------")
 
+        #Prompts user for Baudrate change.
         print("Baudrate: " + str(Baud_Rate))
         print("Change Baudrate? Y/n")
         Baud_Rate = Update(input(), "Baud")
 
+        #Prompts user for serial port change.
         print("Serial Port: " + str(Serial_Port))
         print("Change Port? Y/n")
         Serial_Port = Update(input(), "Port")
 
+        #Prompts user for debug change.
         print("Debug Status: " + str(Debug_Status))
         print("Change Status? Y/n")
         Debug_Status = Update(input(), "Debug")
         
+        #Prints all chosen settings to screen to verify they are correct.
         Settings_Display()
         print("Exit to Program (Exit) or Alter Settings (Alter)")
         choice = input()
         if(choice=="Exit"):
                 
-            #Establishes a serial communication line to the ESP32/IMU.
+            #Establishes a serial communication line to the ESP32/HMC.
             Serial_Create()
             break
 
@@ -562,13 +608,13 @@ def Settings_Display():
     print("--------------------------------------------------")
 
 
-# Predicts time left until completion of data collection.
-#   Parameter Iteration_Amount: Amount of cycles / iterations.
-#   parameter Iteration_Speed: Time taken to complete one cycle.
+# Predicts time left until completion of data collection. 
+#   Starts with 3 seconds to give time for Begin_Signal() to complete.
 def Time_Until_Done():
 
     global Iteration_Amount
 
+    #1/160 = 0.00625 (160Hz)
     Total_Time = (Iteration_Amount * 0.00625)
 
     hours = 0
@@ -601,12 +647,11 @@ def Time_Until_Done():
 
     print("--------------------------------------------------")
 
-# Responsible for updating setting.
-#   Parameter System_Change: Single Charater assigned through input
+    
+# Responsible for updating specific setting.
+#   Parameter System_Change: Yes or no status.
 #   Parameter Origin: Where the function call originated from.
 #   Return Updated_Setting: New setting to overwrite current configuration.
-
-
 def Update(System_Change, Origin):
 
     global Debug_Status
@@ -633,7 +678,7 @@ def Update(System_Change, Origin):
             return Debug_Status
 
 
-# Collects first 10 cycles. Averages the results, and than zeros out data
+# Collects first List_Length cycles. Averages the results and zeros out data
 #   to better show difference while graphing
 #   Parameter x: x axis value
 #   Parameter y: y axis value
@@ -649,6 +694,7 @@ def Zero_Data(x, y, z):
     Y = float(y)
     Z = float(z)
 
+    #Rounded to 2 decimal places for readability.
     a = round(X - X_Avg, 2)
     b = round(Y - Y_Avg, 2)
     c = round(Z - Z_Avg, 2)
