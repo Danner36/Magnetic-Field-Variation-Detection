@@ -115,7 +115,7 @@ void Task_Main(void *parameter){
         
         //Sends x,y,z values in csv format.
         Send_Data();
-        //Delays 0.00625 seconds. Forces 160Hz.
+        //Delays 6.25 milliseconds. Forces 160Hz DOR.
         delay(6.25);
       }
 
@@ -124,7 +124,7 @@ void Task_Main(void *parameter){
     }
 
     //Sends task to idle for 1 second to satisfy watchdog timer.
-    delay(1000);
+    delay(10);
   }
 }
 
@@ -176,7 +176,7 @@ void Task_Serial_Read(void *parameter){
 
     }
     //Sends task to idle for 1/10th second to satisfy watchdog timer.
-    delay(100);
+    delay(10);
   }
 }
 

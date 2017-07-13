@@ -1,5 +1,4 @@
-import matplotlib.pyplot as plt1
-import matplotlib.pyplot as plt2
+import matplotlib.pyplot as plt
 import numpy as np
 import os
 import pandas as pd
@@ -256,33 +255,38 @@ def DataFrame_Plot(df, i):
 
     # Closes previous instance of plt if beyond first iteration.
     if(i>0):
-        plt1.close()
+        plt.close()
           
     # Plot x,y,z axes.
-    plt1.plot(df.X, label="X-axis")
-    plt1.plot(df.Y, label="Y-axis")
-    plt1.plot(df.Z, label="Z-axis")
+    plt.plot(df.X, label="X-axis")
+    #plt.plot(df.Y, label="Y-axis")
+    #plt.plot(df.Z, label="Z-axis")
     
     # Attach axis and title labels.
-    plt1.ylabel("microTesla (uT)")
-    plt1.xlabel("Time (160Hz) (6.25x10^-3(s))")
-    plt1.title("POWER LINE DETECTION TRIAL #" + str(File_Number))
+    plt.ylabel("microTesla (uT)")
+    plt.xlabel("Time (160Hz) (6.25x10^-3(s))")
+    plt.title("POWER LINE DETECTION TRIAL #" + str(File_Number))
 
     #Attach legend box to the top right of graph.
-    plt1.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.0)
+    plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.0)
     
     # Creates / Saves the DataFrame's graph to a file.
     print("Saved #" + str(File_Number) + " in: " + "/home/jared/Desktop/mfvd/Saves")
+    
     # Name of file.
     filename = "Trial :" + str(File_Number)
+    
     # Path to be saved to.
     path = r'/home/jared/Desktop/mfvd/Saves'
+    
     # Saves the DataFrame as a CSV file.
     df.to_csv(os.path.join(path, filename), header=True, sep='\t')
+    
     # Grabs the plot created by (plt2) and sticks into designated path.
     pylab.savefig(os.path.join(path, filename), bbox_inches='tight', pad_inches=0.5)
+    
     # Displays plot to screen. (If wanting to save the graph, this has to be called after the save is complete.)
-    plt1.show()
+    plt.show()
     
     print("--------------------------------------------------")
 
@@ -292,39 +296,60 @@ def DataFrame_Plot(df, i):
 #   it back upon itself.
 def DataFrame_Plot_FFT(df,i):
     
-    
-    #THIS METHOD WAS MEANT TO GRAPH THE INCOMING SIGNAL'S FREQUENCY. NOT CURRENTLY WORKING AS INTENDED.
-    
-    
     global File_Number
     global Iteration_Amount
     
     # Closes previous instance of plt.
-    if(i>0):
-        plt2.close()
-
-    fftres = np.fft.fft(df.values)
-    #fftres = np.fft.fft(df.X)
-    plt2.plot(fftres)
+    plt.close()
+    
+    N_fft = 256
+    Fs = 160
+    
+    freqsig = np.abs(np.fft.fft(df.X,n=N_fft))
+    
+    freq_axis = np.arange(0,Fs/2,Fs/N_fft)
+    
+    plt.plot(freq_axis,freqsig[:N_fft/2],label="Frequency Composition")
     
     # Attach axis and title labels.
-    plt2.title("Magnitude Spectrum of the Signal #" + str(File_Number))
-    #Unsure of corrent units.
-    plt2.ylabel("Magnitude")
-    plt2.xlabel("Frequency (Hz)")
+    plt.title("FFT of Signal #" + str(File_Number))
+    plt.ylabel("FFT Magnitude")
+    plt.xlabel("Frequency (Hz)")
+    
+    #Attach legend box to the top right of graph.
+    plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.0)
     
     # Creates / Saves the DataFrame's graph to a file.
     print("Saved #" + str(File_Number) + " in: " + "/home/jared/Desktop/mfvd/Saves")
+    
     # Name of file.
     filename = "Trial :" + str(File_Number) + " FFT"
+    
     # Path to be saved to.
     path = r'/home/jared/Desktop/mfvd/Saves'
+    
     # Grabs the plot created by (plt2) and sticks into designated path.
     pylab.savefig(os.path.join(path, filename), bbox_inches='tight', pad_inches=0.5)
+    
     # Displays plot to screen. (If wanting to save the graph, this has to be called after the save is complete.)
-    plt2.show()
+    plt.show()
     
     print("--------------------------------------------------")
+    
+    
+def Generate_60Hz():
+    
+    Fs = 0.00625
+    t = 1/Fs
+    f = 60
+    
+    Y = np.sin(2*np.pi*f*t)
+    signal = np.abs(np.fft.fft(Y))
+    
+    plt.close()
+    plt.title("60Hz TEST SIGNAL")
+    plt.plot(signal)
+    plt.show()
     
     
 # Prints out entire dataframe to screen.
@@ -355,7 +380,7 @@ def Prompt_Iteration_Amount(Iteration):
         choice = int(input())
         if(isinstance(choice, int)):
             # List_Length is tacked on to be able to form an average 
-            #   and still recieve required amount.
+            #   and still recieve requested amount.
             Iteration_Amount = choice + List_Length
             break
         else:

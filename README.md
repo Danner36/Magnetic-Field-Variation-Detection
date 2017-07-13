@@ -1,9 +1,9 @@
 # README #
     Last Updated:
-    7/11/17 @ 10:20am
+    7/12/17 @ 7:50pm
 
 ### Repository Info ###
-    Development Status: DISCONTINUED
+    Development Status: ACTIVE
     Version: 1.1c (All works except Fast Fourier Transform graphing.)
 
     Main: ESP32 Development Board
