@@ -1,10 +1,10 @@
 # README #
     Last Updated:
-    7/12/17 @ 7:50pm
+    7/14/17 @ 9:50am
 
 ### Repository Info ###
     Development Status: ACTIVE
-    Version: 1.1c (All works except Fast Fourier Transform graphing.)
+    Version: 1.2
 
     Main: ESP32 Development Board
     Periphials: HMC5883L Magnetometer
