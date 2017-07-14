@@ -7,30 +7,40 @@ uint8_t mag_buffer[6];
 //Finalized array that holds joined bytes from mag_buffer[]
 int16_t mag_raw[3];
 
+//Delays examples: 0.00555 - 180Hz
+//                 0.00625 - 160Hz
+//                 0.00833 - 120Hz (DEFULT)
+//                 0.0100 - 100Hz
+//                 0.0125 - 80Hz
+float SYSTEM_DELAY = 0.00625;
+
 //Used to indicate that Jupyter/user is ready.
 boolean Start_Signal = false;
 //Status of transmission of Iteration_Amount. True when recieved, false otherwise.
 boolean Iter = false;
+//Status of transmission of Operation_Mode. True when recieved, false otherwise.
+boolean Mode = false;
 //True when all needed information is recieved. (Start_Sginal & Iter)
 boolean Ready_To_Send = false;
 //Status of program state. True causes program to be idle, false triggers the transmission of data.
 boolean Completed_Cycle = false;
 
 //Struct used to hold values used throughout program.
-struct data
-{
+struct data{
+
   //Desired amount of data to be sent from the HMC5883L to Jupyter over the serial port.
   int Iteration_Amount = 0;
   //Used to track the amount of data being send. (Goes from 0 to Iteration_Amount)
   int this_iter = 0;
+  //Instructs program to either send information infinitely or until a desired amount has been reached.
+  String Operation_Mode = "STATIONARY_MODE";
 };
 struct data user;
 
 /**
  * Initailzation of: serial port, freeRTOS tasks, and HMC5883L.
  */
-void setup()
-{
+void setup(){
 
   Serial.begin(115200);
 
@@ -103,28 +113,37 @@ void Task_Main(void *parameter){
   while (1){
     
     if (Completed_Cycle){
+
       //Resets all global variables.
       Reset();
+
+      //Sends task to idle for 1/10th second to satisfy watchdog timer.
+      delay(10);
     }
 
     //Ieration_Amount and Start_Sginal were recieved.
     if (Ready_To_Send){
 
       //Iterates up to desired data amount.
-      while(user.this_iter<user.Iteration_Amount){
+      while (user.this_iter < user.Iteration_Amount){
         
         //Sends x,y,z values in csv format.
         Send_Data();
-        //Delays 6.25 milliseconds. Forces 160Hz DOR.
-        delay(6.25);
+
+        delay(SYSTEM_DELAY * 1000);
+      }
+      
+      //If in CONTINUOUS_MODE, it will infinitely send information on the serial port.
+      //   Otherwise, it will stop and restart.
+      if (user.Operation_Mode != "CONTINUOUS_MODE"){
+        //Signals the program has completed.
+        Completed_Cycle = true;
+      }
+      else{
+        user.this_iter = 0;
       }
 
-      //Signals the program has completed.
-      Completed_Cycle = true;
     }
-
-    //Sends task to idle for 1 second to satisfy watchdog timer.
-    delay(10);
   }
 }
 
@@ -150,26 +169,56 @@ void Task_Serial_Read(void *parameter){
           Serial_Clear();
 
           //Signals to Jupyter to send Data_Type.
-          Serial.print(1);
+          Serial.print(SYSTEM_DELAY,5);
 
         }
-        //Clears serial port of all unwanted or unneccessary information.
-        Serial_Clear();
+        else{
+          //Clears serial port of all unwanted or unneccessary information.
+          Serial_Clear();
+        }
 
       }
 
-      //Reads iteration amount from Jupyter.
+      //Reads Iteration Amount from Jupyter.
       else if (user.Iteration_Amount == 0 || !Iter){
+
         //Reads & convers to integer.
         user.Iteration_Amount = Serial.readString().toInt();
         Iter = true;
+
+        //Clears serial port of all unwanted or unneccessary information.
+        Serial_Clear();
+
+        //Signals to Jupyter to send Mode of Operation.
+        Serial.print(1);
+      }
+
+      //Reads Operation Mode from Jupyter.
+      else if (user.Operation_Mode == "" || !Mode){
+        //Reads in mode.
+        int temp = Serial.readString().toInt();
+
+        //Checks to see if valid mode.
+        if(temp == 1 || temp == 2){
+          Mode = true;
+
+          //Assigns appropirate mode.
+          if(temp == 1){
+            user.Operation_Mode = "CONTINUOUS_MODE";
+          }
+          else{
+            user.Operation_Mode = "STATIONARY_MODE";
+          }
+
+        }
         //Clears serial port of all unwanted or unneccessary information.
         Serial_Clear();
       }
 
       //If all signals have been recieved, begins data transmission.
-      if (Start_Signal && Iter){
+      if (Start_Signal && Iter && Mode){
         Ready_To_Send = true;
+
         //Clears serial port of all unwanted or unneccessary information.
         Serial_Clear();
       }
@@ -180,7 +229,9 @@ void Task_Serial_Read(void *parameter){
   }
 }
 
-// Reads in 6 bytes (2 for each x,y,z) from the HMC5883L and merges them together.
+/**
+ * Reads in 6 bytes (2 for each x,y,z) from the HMC5883L and merges them together.
+ */
 void readMag() {
  
   //Onboard the HMC5883L data is kept in registers 0x03 through 0x08. 

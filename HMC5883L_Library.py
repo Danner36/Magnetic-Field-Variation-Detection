@@ -12,23 +12,45 @@ import pylab
 ###   SETTINGS   ###
 
 
-#Operating System beign used. (Windows or Linux) Used to create a serial port.
-Operating_System = ""
-
-# Global serial communication line.
-ser = serial.Serial()
-
 # Baudrate setting used in creation of the serial communication line.
 Baud_Rate = 115200
-
-# Port setting used in creation of the serial communcation line. (Defaulted to Linux)
-Serial_Port = '/dev/ttyUSB0'
 
 # Set to True to print out extra information in certain methods.
 Debug_Status = False
 
+# Ratio of highest to lowest frequencies in the FFT.
+FFT_Ratio = "placeholder"
+
+# File name generated at random to better catalog results.
+File_Number = 0
+
 # Holds the amount of iterations the user inputs.
 Iteration_Amount = 0
+
+# Length of the list used to create and hold the average values. Secondary purpose is to 
+#   make sure no real data is recorded until the sensor is calibrated or out of the transient state.
+List_Length = 200
+
+# Maximum frequency of incoming signal.
+Max_Sig = 0
+
+# Minimum frequency of incoming signal.
+Min_Sig = 0
+
+# Operating System beign used. (Windows or Linux) Used to create a serial port.
+Operating_System = "Linux"
+
+# Mode of Operation. Continous or stationary. Stationary by default.
+Operation_Mode = "STATIONARY_MODE"
+
+# Refresh rate of the system (Hz). SET ON ESP32.
+Refresh_Rate = 0
+
+# Global serial communication line.
+ser = serial.Serial()
+
+# Port setting used in creation of the serial communcation line. (Defaulted to Linux)
+Serial_Port = '/dev/ttyUSB0'
 
 # Array of length (List_Length) used to create average later used to zero out data.
 X_Arr = []
@@ -42,19 +64,15 @@ Y_Avg = None
 Z_Arr = []
 Z_Avg = None
 
-# Length of the list used to create and hold the average values. Secondary purpose is to 
-#   make sure no real data is recorded until the sensor is calibrated or out of the transient state.
-List_Length = 200
-
-# File name generated at random to better catalog results.
-File_Number = 0
-
 
 ###   FUNCTIONS   ###
 
 
 # Reads in a set amount of data cycles at the beginning of the program to set the average 
 #   for each the X, Y, and Z axes.
+#   Parameter: x - DataFrame axis value for X
+#   Parameter: y - DataFrame axis value for Y
+#   Parameter: z - DataFrame axis value for Z
 def Average_Data(x, y, z):
 
     global X_Arr
@@ -66,8 +84,8 @@ def Average_Data(x, y, z):
     global Z_Arr
     global Z_Avg
 
-    global List_Length
     global Debug_Status
+    global List_Length
 
     x = round(float(x),2)
     y = round(float(y),2)
@@ -107,6 +125,7 @@ def Average_Data(x, y, z):
             print("Y Average: " + str(Y_Avg))
             print("Z List: " + str(Z_Arr))
             print("Z Average: " + str(Z_Avg))
+            print("--------------------------------------------------")
 
 
 # Appends the axis parameters to the DataFrame parameter. Sorts updated DataFrame.
@@ -128,9 +147,11 @@ def Append_Series_to_DataFrame(x, y, z, df, direction):
 #   desired amount of data. NOTE: Time_Until_Done is a rough estimation. 
 def Begin_Signal():
 
-    global ser
     global Data_Type
     global Iteration_Amount
+    global Operation_Mode
+    global Refresh_Rate
+    global ser
 
     global X_Avg
     global Y_Avg
@@ -147,9 +168,6 @@ def Begin_Signal():
     Z_Avg = 0.0
     Z_Arr = []
 
-    # Estimates time until completion of data collection and plotting.
-    Time_Until_Done()
-
     # Clears serial port of unnessecary data.
     Serial_Clear()
 
@@ -160,45 +178,36 @@ def Begin_Signal():
     if(Debug_Status):
         print("")
         print("Waiting for Iteration_Amount request...")
-    Serial_Recieve()
+    Refresh_Rate = float(Serial_Recieve())
 
-    # Sends the Iteration_Amount
+    # Sends the Iteration_Amount.
     Serial_Send(Iteration_Amount)
+    
+    if(Debug_Status):
+        print("")
+        print("Waiting for Operation_Mode request...")
+    Serial_Recieve()
+    
+    # Sends the Operation_Mode.
+    temp = 0
+    if(Operation_Mode == "CONTINUOUS_MODE"):
+        temp = 1
+    else:
+        temp = 2
+    Serial_Send(temp)
 
 
 # Reads in data from ESP32 over the serial port defined below.
 #   Returns df: Completed DataFrame from recorded data points.
 def Collect_Data():
 
-    global ser
     global Iteration_Amount
     global List_Length
-    global Cycle_Count
+    global ser
     
     global X_Avg
     global Y_Avg
     global Z_Avg
-
-    # Reads in a set amount of cycles to do both establish an average
-    #   to zero out data, and exclude the uncalibrated data from the program.
-    for i in range(0, List_Length - 1):
-        
-        # Reads in a string of 3 floats seperates by commas.
-        x, y, z = Series_Create("SPLIT")
-        
-        # To exclude the transient repsonse from the average, the program only formulates
-        #   the average based on the 2nd half of the length of List_Length. 
-        #   EXAMPLE: List_Length = 200 so it will discard the first 100 values and form an
-        #            average with the last 100.
-        if(i>List_Length/2):
-            Average_Data(x, y, z)
-            if(Debug_Status):
-                print(i)
-        else:
-            if(Debug_Status):
-                print(i)
-        if(Debug_Status):
-            print("--------------------------------------------------")
     
     # Builds 1st Series.
     s1 = Series_Create("WHOLE")
@@ -209,10 +218,17 @@ def Collect_Data():
     # Creates dataframes with appropriate column names from above  series.
     df = pd.DataFrame([list(s1), list(s2)],  columns=["X", "Y", "Z"])
 
-    # Continuously reads in values and appends to DataFrame for desired amount of iterations.
-    #   Iteration_Amount - Amount selected by user. 
-    #   this_iter - Summation of List_Length and 2 (due to the first two values used to form the above series.
-    this_iter = List_Length + 2
+    #Iterator used in data collection.
+    this_iter = 0
+    
+    #Starts at 2 + List_Length to include averaged amount.
+    if(Operation_Mode == "STATIONARY_MODE"):
+        this_iter = List_Length + 2
+    #Starts at 2 to not include the average (List_Length)
+    elif(Operation_Mode == "CONTINUOUS_MODE"):
+        this_iter = 1
+        Iteration_Amount = 160
+    
     while(this_iter < Iteration_Amount):
         
         if(Debug_Status):
@@ -245,10 +261,10 @@ def Collect_Data():
 #   Expected dataframe to have 3 axis worth of data labelled 'X,Y,Z'.
 #   Parameter df: DataFrame to be graphed.
 #   Paramter i: Iteration Count for the entire program.
-def DataFrame_Plot(df, i):
+def Display_DF(df, i):
 
-    global Iteration_Amount
     global File_Number
+    global Iteration_Amount
     
     # Generates random number to be used for identification.
     File_Number = randint(0,10000)
@@ -267,7 +283,7 @@ def DataFrame_Plot(df, i):
     plt.xlabel("Time (160Hz) (6.25x10^-3(s))")
     plt.title("POWER LINE DETECTION TRIAL #" + str(File_Number))
 
-    #Attach legend box to the top right of graph.
+    # Attach legend box to the top right of graph.
     plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.0)
     
     # Creates / Saves the DataFrame's graph to a file.
@@ -294,29 +310,40 @@ def DataFrame_Plot(df, i):
 # Applys Fast Fourier Transform to 60Hz signal at 160Hz sampling rate.
 #   Allows for signal indication further from the 60Hz wire by integrating
 #   it back upon itself.
-def DataFrame_Plot_FFT(df,i):
+#   Parameter: df - DataFrame to apply FFT.
+def Display_FFT(df):
     
+    global FFT_Ratio
     global File_Number
+    global Freq_Axis
+    global Freq_Sig
     global Iteration_Amount
-    
+    global Refresh_Rate
+ 
     # Closes previous instance of plt.
     plt.close()
     
-    N_fft = 256
-    Fs = 160
+    # Preforms an Fast Fourier Transform of passed in array.
+    Get_FFT(df.X)
     
-    freqsig = np.abs(np.fft.fft(df.X,n=N_fft))
+    # Plots FFT.
+    plt.plot(Freq_Axis, Freq_Sig, label="Frequency Composition")
+       
+    # Gets ratio of highest and lowest points in FFT array.
+    Get_Ratio()
     
-    freq_axis = np.arange(0,Fs/2,Fs/N_fft)
+    # Finds correct positioning for ratio text.
+    Graph_Height = max(Freq_Sig)*.9
     
-    plt.plot(freq_axis,freqsig[:N_fft/2],label="Frequency Composition")
+    # Places text box with ratio of the FFT array.
+    plt.text(5, Graph_Height, "Ratio " + str(FFT_Ratio), fontsize=15)
     
     # Attach axis and title labels.
     plt.title("FFT of Signal #" + str(File_Number))
     plt.ylabel("FFT Magnitude")
     plt.xlabel("Frequency (Hz)")
     
-    #Attach legend box to the top right of graph.
+    # Attach legend box to the top right of graph.
     plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.0)
     
     # Creates / Saves the DataFrame's graph to a file.
@@ -337,6 +364,150 @@ def DataFrame_Plot_FFT(df,i):
     print("--------------------------------------------------")
     
     
+# Prints out entire dataframe to screen.
+#   Parameter df: DataFrame to be printed.
+def Display_Table(df):
+
+    # Print DataFrame.
+    print(df)
+    print("--------------------------------------------------")
+    
+    
+# Displays all current settings, their values, and or their status.
+def Display_Settings():
+
+    global Baud_Rate
+    global Debug_Status
+    global Operation_Mode
+    global Operating_System
+    global Serial_Port
+
+    
+    print("\t\tCURRENT SETTINGS")
+    print("Operating System: " + str(Operating_System))
+    print("Operation Mode: " + str(Operation_Mode))
+    print("Baudrate: " + str(Baud_Rate))
+    print("Serial Port: " + str(Serial_Port))
+    print("Debug Status: " + str(Debug_Status))
+    print("--------------------------------------------------")
+    
+    
+# Prints out the strength of the signal compared to the background noise.
+#   Uses the ratio to compute strength
+#   Parameter: df - DataFrame
+#   Parameter: i - Iteration Count for the entire program.
+def Display_Signal_Strength(df,i):
+    
+    global Debug_Status
+    global FFT_Strength
+    global Max_Sig
+    global Min_Sig
+    
+    if(i == 0):
+        plt.close()
+    
+    #Computes FFT from passed in array.
+    if(Debug_Status):
+        print("")
+        print("Calculating FFT")
+        
+    Get_FFT(df.X)
+    
+    #Computes ratio from FFT data.
+    if(Debug_Status):
+        print("")
+        print("Calculating Ratio")
+        
+    Get_Ratio()
+    
+    if(Debug_Status):
+        print("")
+        print("Displaying Signal Strength")
+        
+    #Displays Signal Strength. 
+    print("")
+    print("")
+    print("          " + str(FFT_Strength))
+    print("")
+    print("")
+    
+      
+    
+
+# Conducts and Fast Fourier Transform of the given data.
+#   Parameter: sig - Array of data to be transformed.
+#   Returns: freqsig - Integrated signal.
+#   Returns: freqaxis - Axis range on which the FFT should be plotted.
+def Get_FFT(sig):
+    
+    global Debug_Status
+    global Freq_Axis
+    global Freq_Sig
+    global Refresh_Rate
+    
+    N_fft = 160
+    Fs = 1/Refresh_Rate
+    
+    # Creates correct axis range for data, also creates the fft to be plotted.
+    Freq_Sig = np.abs(np.fft.fft(sig, n=N_fft))
+    Freq_Axis = np.arange(0, Fs/2, Fs/N_fft)
+    if(Debug_Status):
+        print("Freq_Sig Created: " + str(len(Freq_Sig)))
+    
+    # Splices list to only include first half.
+    Freq_Sig = Freq_Sig[:N_fft/2]
+    if(Debug_Status):
+        print("Splitting Freq_Sig, Length = " + str(len(Freq_Sig)))
+    
+    
+# Finds ratio between max point and low mean in array.
+#   Return: ratio - Ratio between highest and lower magntiudes.
+def Get_Ratio():
+    
+    global Debug_Status
+    global FFT_Strength
+    global FFT_Ratio
+    global Freq_Sig
+    global Max_Sig
+    global Min_Sig
+    
+    total = 0.0
+    
+    # Sums up 10 frequencies near beginning of range. 
+    for i in range(10,20):
+        total += Freq_Sig[i]
+    
+    # Averages the magnitudes to find the mean of the lower spectrum.
+    Min_Sig = int(total/10.0)
+    if(Debug_Status):
+        print("Minimum Signal: " + str(Min_Sig))
+    
+    # Finds highest frequency magnitude in the signal.
+    Max_Sig = int(max(Freq_Sig))
+    if(Debug_Status):
+        print("Maximum Signal: " + str(Max_Sig))
+    
+    # Finds the index of the highest magnitude.
+    Max_Index = 0
+    for i in range(0, len(Freq_Sig)):
+        if(int(Freq_Sig[i]) == Max_Sig):
+            Max_Index = i
+    if(Debug_Status):
+        print("Max_Index: " + str(i))
+    
+    # If within certain range of frequencies. Returns ratio. Otherwise, '----' (Nothing).
+    if(65<Max_Index and Max_Index<80):
+        FFT_Ratio = str(int(Max_Sig)) + ":" + str(int(Min_Sig))
+        FFT_Strength = int(Max_Sig/Min_Sig)
+    else:
+        FFT_Strength = "----"
+        FFT_Ratio = "----"
+    if(Debug_Status):
+        print("FFT_Strength: " + str(FFT_Strength))
+        print("FFT_Ratio: " +str(FFT_Ratio))
+    
+    
+# Creates a 60Hz signal for test and verification purposes. 
 def Generate_60Hz():
     
     Fs = 0.00625
@@ -350,15 +521,6 @@ def Generate_60Hz():
     plt.title("60Hz TEST SIGNAL")
     plt.plot(signal)
     plt.show()
-    
-    
-# Prints out entire dataframe to screen.
-#   Parameter df: DataFrame to be printed.
-def DataFrame_Print(df):
-
-    # Print DataFrame.
-    print(df)
-    print("--------------------------------------------------")
 
 
 # Prompts the user to input an amount of data points they want gathered
@@ -368,36 +530,42 @@ def Prompt_Iteration_Amount(Iteration):
 
     global Iteration_Amount
     global List_Length
+    global Operation_Mode
 
-    # Prints the iteration number.
-    print("Iteration #" + str(Iteration))
-    print("--------------------------------------------------")
+    if(Operation_Mode == "STATIONARY_MODE"):
+        
+        # Prints the iteration number.
+        print("Iteration #" + str(Iteration))
+        print("--------------------------------------------------")
 
-    # Prompts user to enter an amount of data points.
-    print("Enter desired data points: ")
+        # Prompts user to enter an amount of data points.
+        print("Enter desired data points: ")
+
+        while(1):
+            choice = int(input())
+            if(isinstance(choice, int)):
+                # List_Length is tacked on to be able to form an average 
+                #   and still recieve requested amount.
+                Iteration_Amount = choice + List_Length
+                break
+            else:
+                print("Enter a integer type")
+        print("--------------------------------------------------")
     
-    while(1):
-        choice = int(input())
-        if(isinstance(choice, int)):
-            # List_Length is tacked on to be able to form an average 
-            #   and still recieve requested amount.
-            Iteration_Amount = choice + List_Length
-            break
-        else:
-            print("Enter a integer type")
-    print("--------------------------------------------------")
-
+    elif(Operation_Mode == "CONTINUOUS_MODE"):
+        Iteration_Amount = 160 + List_Length
+    
 
 # Reads in / clears unwanted data from serial port.
 def Serial_Clear():
 
-    global debug
+    global Debug_Status
     global ser
 
-    #Checks if serial port is empty.
+    # Checks if serial port is empty.
     if(ser.in_waiting != 0):
         
-        #If not, reads in until empty.
+        # If not, reads in until empty.
         junk = ser.readline().decode()
         
         if(Debug_Status):
@@ -415,9 +583,10 @@ def Serial_Close():
 # Configures and opens a serical communication line.
 def Serial_Create():
 
+    global Baud_Rate
     global ser
     global Serial_Port
-    global Baud_Rate
+
 
     #Establishes serial port if not already open.
     if(ser.is_open == False):
@@ -431,12 +600,12 @@ def Serial_Create():
 #   Returns message: Input read in from serial line.
 def Serial_Recieve():
 
-    global debug
+    global Debug_Status
     global ser
 
     while(1):
         if(ser.in_waiting != 0):
-            message = ser.read().decode()
+            message = ser.readline().decode()
 
             if(Debug_Status):
                 print("Received: " + str(message))
@@ -448,16 +617,16 @@ def Serial_Recieve():
 #   Parameter message: Object to send over the serial line.
 def Serial_Send(message):
 
-    global debug
+    global Debug_Status
     global ser
 
-    #Converts to string for easier decoding on ESP32.
+    # Converts to string for easier decoding on ESP32.
     message = str(message)
 
     if(Debug_Status):
         print("Sending: " + str(message))
 
-    #Due to message being of type string, needs to be encoded.
+    # Due to message being of type string, needs to be encoded.
     ser.write(message.encode())
 
 
@@ -467,11 +636,10 @@ def Serial_Send(message):
 #   Returns line.split(","): Individual variables x,y,z.
 def Series_Create(text):
 
+    global Debug_Status
     global ser
-    global debug
 
     if(Debug_Status):
-        print("--------------------------------------------------")
         print("Waiting to create series")
 
     while(1):
@@ -500,7 +668,28 @@ def Series_Create(text):
                     print("Zeroed   " + "X:" + str(a) + "  Y:" + str(b) + "  Z:" + str(c))
                 return s
 
+            
+# Reads in certain amount (List_Length) to form average.
+def Set_Average():
+    
+    # Reads in a set amount of cycles to do both establish an average
+    #   to zero out data, and exclude the uncalibrated data from the program.
+    for i in range(0, List_Length - 1):
+        
+        # Reads in a string of 3 floats seperates by commas.
+        x, y, z = Series_Create("SPLIT")
+        
+        # To exclude the transient repsonse from the average, the program only formulates
+        #   the average based on the 2nd half of the length of List_Length. 
+        #   EXAMPLE: List_Length = 200 so it will discard the first 100 values and form an
+        #            average with the last 100.
+        if(i>List_Length/2):
+            Average_Data(x, y, z)
+        if(Debug_Status):
+            print(i)
+            print("--------------------------------------------------")
 
+            
 # Prompts the user to enter a baudrate to be used in serial communication.
 #   Returns choice: User entered baudrate.
 def Set_Baudrate():
@@ -529,6 +718,43 @@ def Set_Debug():
         return True
 
 
+#Sets Mode of operation.
+#   CONTINUOUS - Reads in data over 1 second interval. Prints out signal strength.
+#   STATIONARY - Reads in set amount of data and displays it in graph and table form.
+def Set_Mode():
+    
+    print("Modes: CONTINUOUS (1)")
+    print("       STATIONARY (2)")
+    print("Choose Mode: ")
+    
+    Result = "Placeholder"
+    while(1):
+        choice = str(input())
+        if(choice == '1'):
+            Result = "CONTINUOUS_MODE"
+            break
+        elif(choice == '2'):
+            Result = "STATIONARY_MODE"
+            break
+        else:
+            print("Enter valid mode. 1 or 2")
+            
+    print("\t\tSetting Updated")
+    print("--------------------------------------------------")
+    return Result
+
+    
+#Sets Operating System. Used if creation of serial port system.
+def Set_OS():
+    
+    while(Operating_System != "Windows" and Operating_System != "Linux"): 
+        print("Select Windows or Linux.")
+        Operating_System = input()
+            
+    print("\t\tSetting Updated")
+    print("--------------------------------------------------")
+
+    
 # Prompts the user to enter a serial port to be used in serial communication.
 #   Returns specific serial port that was selected.
 def Set_SerialPort():
@@ -569,9 +795,10 @@ def Set_SerialPort():
 #Used in setup of the system settings. 
 def Settings_Config():
     
-    global Operating_System
-    global Debug_Status
     global Baud_Rate
+    global Debug_Status
+    global Operation_Mode
+    global Operating_System
     global Serial_Port
     
     while(1):
@@ -583,20 +810,22 @@ def Settings_Config():
         print("SETTINGS MENU: ")
         print("")
         
-        #Prompts user for selection of OS. 
-        while(Operating_System != "Windows" and Operating_System != "Linux"): 
-            print("Select Windows or Linux")
-            Operating_System = input()
-            
-        print("\t\tSetting Updated")
-        print("--------------------------------------------------")
+        # Prompts user for OS.
+        print("Operating System: " + Operating_System)
+        print("Change OS? Y/n")
+        Operating_System = Update(input(), "OS")
+         
+        # Prompts user for mode. 
+        print("Operation Mode: " + Operation_Mode)
+        print("Change Mode? Y/n")
+        Operation_Mode = Update(input(), "Mode")
 
-        #Prompts user for Baudrate change.
+        # Prompts user for Baudrate change.
         print("Baudrate: " + str(Baud_Rate))
         print("Change Baudrate? Y/n")
         Baud_Rate = Update(input(), "Baud")
 
-        #Prompts user for serial port change.
+        # Prompts user for serial port change.
         print("Serial Port: " + str(Serial_Port))
         print("Change Port? Y/n")
         Serial_Port = Update(input(), "Port")
@@ -606,45 +835,27 @@ def Settings_Config():
         print("Change Status? Y/n")
         Debug_Status = Update(input(), "Debug")
         
-        #Prints all chosen settings to screen to verify they are correct.
-        Settings_Display()
+        # Prints all chosen settings to screen to verify they are correct.
+        Display_Settings()
         print("Exit to Program (Exit) or Alter Settings (Alter)")
         choice = input()
-        if(choice=="Exit"):
-                
-            #Establishes a serial communication line to the ESP32/HMC.
+        if(choice=="Exit"):  
+            # Establishes a serial communication line to the ESP32/HMC.
             Serial_Create()
             break
 
 
-# Displays all current settings, their values, and or their status.
-def Settings_Display():
-
-    global Debug_Status
-    global Baud_Rate
-    global Serial_Port
-    global Operating_System
-    
-    print("\t\tCURRENT SETTINGS")
-    print("Operating System: " + str(Operating_System))
-    print("Baudrate: " + str(Baud_Rate))
-    print("Serial Port: " + str(Serial_Port))
-    print("Debug Status: " + str(Debug_Status))
-    print("--------------------------------------------------")
-
-
-# Predicts time left until completion of data collection. 
-#   Starts with 3 seconds to give time for Begin_Signal() to complete.
+# Predicts time left until completion of data collection.
 def Time_Until_Done():
 
     global Iteration_Amount
-
-    #1/160 = 0.00625 (160Hz)
-    Total_Time = (Iteration_Amount * 0.00625)
+    global Refresh_Rate
+    
+    Total_Time = (Iteration_Amount * Refresh_Rate)
 
     hours = 0
     minutes = 0
-    seconds = 3
+    seconds = 0
 
     while(Total_Time >= 3600):
         Total_time -= 3600
@@ -679,8 +890,8 @@ def Time_Until_Done():
 #   Return Updated_Setting: New setting to overwrite current configuration.
 def Update(System_Change, Origin):
 
-    global Debug_Status
     global Baud_Rate
+    global Debug_Status
     global Serial_Port
 
     if(Origin == "Baud"):
@@ -701,6 +912,18 @@ def Update(System_Change, Origin):
         else:
             print("--------------------------------------------------")
             return Debug_Status
+    elif(Origin == "Mode"):
+        if(System_Change == 'Y'):
+            return Set_Mode()
+        else:
+            print("--------------------------------------------------")
+            return Operation_Mode
+    elif(Origin == "OS"):
+        if(System_Change == 'Y'):
+            return Set_OS()
+        else:
+            print("--------------------------------------------------")
+            return Operating_System
 
 
 # Collects first List_Length cycles. Averages the results and zeros out data
@@ -719,7 +942,7 @@ def Zero_Data(x, y, z):
     Y = float(y)
     Z = float(z)
 
-    #Rounded to 2 decimal places for readability.
+    # Rounded to 2 decimal places for readability.
     a = round(X - X_Avg, 2)
     b = round(Y - Y_Avg, 2)
     c = round(Z - Z_Avg, 2)
