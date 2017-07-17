@@ -13,5 +13,18 @@
             },
             "intelliSenseMode": "clang-x64"
         }
+        {
+            "name": "Windows",
+            "includePath": [
+                "C:/Users/jd17033/Documents/Arduino/hardware/espressif/esp32/cores/esp32"
+            ],
+            "browse": {
+                "limitSymbolsToIncludedHeaders": false,
+                "path": [
+                    "C:/Users/jd17033/Documents/Arduino/hardware/espressif/esp32/cores/esp32"
+                ]
+            },
+            "intelliSenseMode": "clang-x64"
+        }
     ]
 }

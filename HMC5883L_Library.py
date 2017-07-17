@@ -3,7 +3,6 @@ import numpy as np
 import os
 import pandas as pd
 from random import randint
-import scipy.fftpack
 import serial
 from IPython.display import clear_output
 import pylab
@@ -747,13 +746,23 @@ def Set_Mode():
 #Sets Operating System. Used if creation of serial port system.
 def Set_OS():
     
-    while(Operating_System != "Windows" and Operating_System != "Linux"): 
-        print("Select Windows or Linux.")
-        Operating_System = input()
+    global Serial_Port
+    
+    print("Select Windows or Linux.")
+    while(1):
+        choice = input()
+        if(choice == "Windows"):
+            Serial_Port = 'COM3'
+            break
+        elif(choice == "Linux"):
+            Serial_Port = '/dev/ttyUSB0'
+            break
+        else:
+            print("Enter either 'Windows' or 'Linux'")
             
     print("\t\tSetting Updated")
     print("--------------------------------------------------")
-
+    return choice
     
 # Prompts the user to enter a serial port to be used in serial communication.
 #   Returns specific serial port that was selected.
@@ -780,7 +789,7 @@ def Set_SerialPort():
             else:
                 print("Invalid or wrong connection. Check your port!")
         elif(Operating_System == "Windows"):
-            print("Allowed Serial Ports: \tCOM0\tCOM1\tCOM2")
+            print("Allowed Serial Ports: \tCOM0\tCOM1\tCOM2\tCOM3")
             print("Please enter one of the above ports.")
             port = input()
                 
