@@ -21,7 +21,7 @@ Debug_Status = False
 FFT_Arr = []
 
 # Ratio of highest to lowest frequencies in the FFT.
-FFT_Ratio = "placeholder"
+FFT_Ratio = "Placeholder until calculated."
 
 # File name generated at random to better catalog results.
 File_Number = 0
@@ -120,7 +120,7 @@ def Average_Data(x, y, z):
             Z_Arr.append(z)
             Z_Avg = round((float(sum(Z_Arr)) / float(len(Z_Arr))), 2)
 
-        if(Debug_Status):
+        if(Debug_Status and Operation_Mode == "STATIONARY_MODE"):
             print("X List: " + str(X_Arr))
             print("X Average: " + str(X_Avg))
             print("Y List: " + str(Y_Arr))
@@ -234,7 +234,7 @@ def Collect_Data():
     
     while(this_iter < Iteration_Amount):
         
-        if(Debug_Status):
+        if(Debug_Status and Operation_Mode == "STATIONARY_MODE"):
             print("#:" + str(this_iter))
             
         # Reads in a string of 3 floats seperates by commas.
@@ -243,7 +243,7 @@ def Collect_Data():
         # Subtracts or adds average to the incoming data.
         a, b, c = Zero_Data(x, y, z)
         
-        if(Debug_Status):
+        if(Debug_Status and Operation_Mode == "STATIONARY_MODE"):
             print("Averages " + "X:" + str(X_Avg) + "  Y:" + str(Y_Avg) + "  Z:" + str(Z_Avg))
             print("Original " + "X:" + str(x) + "  Y:" + str(y) + "  Z:" + str(z))
             print("Zeroed   " + "X:" + str(a) + "  Y:" + str(b) + "  Z:" + str(c))
@@ -302,7 +302,7 @@ def Display_DF(df, i):
         path = r'C:/Users/jd17033/Desktop/mfvd/Saves'
     
     # Saves the DataFrame as a CSV file.
-    #df.to_csv(os.path.join(path, filename), header=True, sep='\t')
+    df.to_csv(os.path.join(path, filename), header=True, sep='\t')
     
     # Grabs the plot created by (plt2) and sticks into designated path.
     pylab.savefig(os.path.join(path, filename), bbox_inches='tight', pad_inches=0.5)
@@ -414,6 +414,7 @@ def Display_Signal_Strength(df,i):
     global Max_Sig
     global Min_Sig
     
+    #Checks for first iteration.
     if(i == 0):
         plt.close()
     
@@ -421,27 +422,43 @@ def Display_Signal_Strength(df,i):
     if(Debug_Status):
         print("")
         print("Calculating FFT")
-        
+    
+    #Computes FFT from df.X.
     Get_FFT(df.X)
     
     #Computes ratio from FFT data.
     if(Debug_Status):
         print("")
         print("Calculating Ratio")
-        
+    
+    #Computes all FFT values.
     Get_Ratio()
     
+    #Establishes variable to hold avg (local variable).
     FFT_AvgStrength = 0
     
-    if(len(FFT_Arr) < 3):
+    #Checks for invalid ratio. '----' means there is no standout signal.
+    if(FFT_Strength == '----'):
+        #Essentially does nothing
+        three = 1 + 2
+        
+    #Checks for non full array.
+    elif(len(FFT_Arr) < 3):
+        
+        # Appends new Strength to array.
         FFT_Arr.append(FFT_Strength)
+    
+    #Array if full, pops out last and pushes in new. Averages and prints data to screen.
     else:
+        # Shifts [0]->[1]->[2] and sets [0] to new value.
         FFT_Arr[2] = FFT_Arr[1]
         FFT_Arr[1] = FFT_Arr[0]
         FFT_Arr[0] = FFT_Strength
+        
+        # Averages array.
         FFT_AvgStrength = int(sum(FFT_Arr)/len(FFT_Arr))
         
-        #Displays Avgerage Signal Strength. 
+        # Displays Avgerage Signal Strength. 
         print("")
         print("")
         print("          " + str(FFT_AvgStrength))
@@ -465,6 +482,7 @@ def Get_FFT(sig):
     global Freq_Sig
     global Refresh_Rate
     
+    #System numbers needed to create appropriate FFT window and axis
     N_fft = 160
     Fs = 1/Refresh_Rate
     
@@ -659,7 +677,7 @@ def Series_Create(text):
     global Debug_Status
     global ser
 
-    if(Debug_Status):
+    if(Debug_Status and Operation_Mode == "STATIONARY_MODE"):
         print("Waiting to create series")
 
     while(1):
@@ -669,7 +687,7 @@ def Series_Create(text):
             line = ser.readline().decode()
             
             if(text == "SPLIT"):
-                if(Debug_Status):
+                if(Debug_Status and Operation_Mode == "STATIONARY_MODE"):
                     print("Series created from " + str(line))
                     print("")
                 return line.split(",")
@@ -680,7 +698,7 @@ def Series_Create(text):
                 a, b, c = Zero_Data(x, y, z)
                 s = pd.Series([a, b, c])
                 
-                if(Debug_Status):
+                if(Debug_Status and Operation_Mode == "STATIONARY_MODE"):
                     print("Series created from " + str(line))
                     print("")
                     print("Averages " + "X:" + str(X_Avg) + "  Y:" + str(Y_Avg) + "  Z:" + str(Z_Avg))
@@ -705,7 +723,7 @@ def Set_Average():
         #            average with the last 100.
         if(i>List_Length/2):
             Average_Data(x, y, z)
-        if(Debug_Status):
+        if(Debug_Status and Operation_Mode == "STATIONARY_MODE"):
             print(i)
             print("--------------------------------------------------")
 
