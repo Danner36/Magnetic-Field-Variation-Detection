@@ -17,6 +17,9 @@ Baud_Rate = 115200
 # Set to True to print out extra information in certain methods.
 Debug_Status = False
 
+# List of set amount (3) FFT_Strengths. Used to make a smooth average of data.
+FFT_Arr = []
+
 # Ratio of highest to lowest frequencies in the FFT.
 FFT_Ratio = "placeholder"
 
@@ -43,7 +46,7 @@ Operating_System = "Linux"
 Operation_Mode = "STATIONARY_MODE"
 
 # Refresh rate of the system (Hz). SET ON ESP32.
-Refresh_Rate = 0
+Refresh_Rate = 0.00625
 
 # Global serial communication line.
 ser = serial.Serial()
@@ -168,7 +171,8 @@ def Begin_Signal():
     Z_Arr = []
 
     # Clears serial port of unnessecary data.
-    Serial_Clear()
+    while(ser.in_waiting != 0):
+        Serial_Clear()
 
     # Sends signal to ESP32 to start listening for commands.
     Serial_Send("START")
@@ -177,7 +181,7 @@ def Begin_Signal():
     if(Debug_Status):
         print("")
         print("Waiting for Iteration_Amount request...")
-    Refresh_Rate = float(Serial_Recieve())
+    Serial_Recieve()
 
     # Sends the Iteration_Amount.
     Serial_Send(Iteration_Amount)
@@ -291,11 +295,14 @@ def Display_DF(df, i):
     # Name of file.
     filename = "Trial :" + str(File_Number)
     
-    # Path to be saved to.
-    path = r'/home/jared/Desktop/mfvd/Saves'
+    # Assign path to be saved.
+    if(Operating_System == "Linux"): 
+        path = r'/home/jared/Desktop/mfvd/Saves'
+    elif(Operating_System == "Windows"):
+        path = r'C:/Users/jd17033/Desktop/mfvd/Saves'
     
     # Saves the DataFrame as a CSV file.
-    df.to_csv(os.path.join(path, filename), header=True, sep='\t')
+    #df.to_csv(os.path.join(path, filename), header=True, sep='\t')
     
     # Grabs the plot created by (plt2) and sticks into designated path.
     pylab.savefig(os.path.join(path, filename), bbox_inches='tight', pad_inches=0.5)
@@ -317,6 +324,7 @@ def Display_FFT(df):
     global Freq_Axis
     global Freq_Sig
     global Iteration_Amount
+    global Operating_System
     global Refresh_Rate
  
     # Closes previous instance of plt.
@@ -351,8 +359,11 @@ def Display_FFT(df):
     # Name of file.
     filename = "Trial :" + str(File_Number) + " FFT"
     
-    # Path to be saved to.
-    path = r'/home/jared/Desktop/mfvd/Saves'
+    # Assign path to be saved.
+    if(Operating_System == "Linux"): 
+        path = r'/home/jared/Desktop/mfvd/Saves'
+    elif(Operating_System == "Windows"):
+        path = r'C:/Users/jd17033/Desktop/mfvd/Saves'
     
     # Grabs the plot created by (plt2) and sticks into designated path.
     pylab.savefig(os.path.join(path, filename), bbox_inches='tight', pad_inches=0.5)
@@ -398,6 +409,7 @@ def Display_Settings():
 def Display_Signal_Strength(df,i):
     
     global Debug_Status
+    global FFT_Arr
     global FFT_Strength
     global Max_Sig
     global Min_Sig
@@ -419,18 +431,27 @@ def Display_Signal_Strength(df,i):
         
     Get_Ratio()
     
-    if(Debug_Status):
-        print("")
-        print("Displaying Signal Strength")
-        
-    #Displays Signal Strength. 
-    print("")
-    print("")
-    print("          " + str(FFT_Strength))
-    print("")
-    print("")
+    FFT_AvgStrength = 0
     
-      
+    if(len(FFT_Arr) < 3):
+        FFT_Arr.append(FFT_Strength)
+    else:
+        FFT_Arr[2] = FFT_Arr[1]
+        FFT_Arr[1] = FFT_Arr[0]
+        FFT_Arr[0] = FFT_Strength
+        FFT_AvgStrength = int(sum(FFT_Arr)/len(FFT_Arr))
+        
+        #Displays Avgerage Signal Strength. 
+        print("")
+        print("")
+        print("          " + str(FFT_AvgStrength))
+        print("")
+        print("")
+        
+    if(Debug_Status):
+        print("Filling Array: " + str(FFT_Arr))
+        print("Individual Signal Strength: " + str(FFT_Strength))
+        print("Average Signal Strength: " + str(FFT_AvgStrength))
     
 
 # Conducts and Fast Fourier Transform of the given data.
@@ -454,7 +475,7 @@ def Get_FFT(sig):
         print("Freq_Sig Created: " + str(len(Freq_Sig)))
     
     # Splices list to only include first half.
-    Freq_Sig = Freq_Sig[:N_fft/2]
+    Freq_Sig = Freq_Sig[:int(N_fft/2)]
     if(Debug_Status):
         print("Splitting Freq_Sig, Length = " + str(len(Freq_Sig)))
     
@@ -502,8 +523,8 @@ def Get_Ratio():
         FFT_Strength = "----"
         FFT_Ratio = "----"
     if(Debug_Status):
-        print("FFT_Strength: " + str(FFT_Strength))
         print("FFT_Ratio: " +str(FFT_Ratio))
+        print("FFT_Strength: " + str(FFT_Strength))
     
     
 # Creates a 60Hz signal for test and verification purposes. 
@@ -752,7 +773,7 @@ def Set_OS():
     while(1):
         choice = input()
         if(choice == "Windows"):
-            Serial_Port = 'COM3'
+            Serial_Port = 'COM4'
             break
         elif(choice == "Linux"):
             Serial_Port = '/dev/ttyUSB0'
@@ -789,11 +810,11 @@ def Set_SerialPort():
             else:
                 print("Invalid or wrong connection. Check your port!")
         elif(Operating_System == "Windows"):
-            print("Allowed Serial Ports: \tCOM0\tCOM1\tCOM2\tCOM3")
+            print("Allowed Serial Ports: \tCOM0\tCOM1\tCOM2\tCOM3\tCOM4")
             print("Please enter one of the above ports.")
             port = input()
                 
-            if(port == "COM0" or "COM1" or "COM2" or "COM3"):
+            if(port == "COM0" or "COM1" or "COM2" or "COM3" or "COM4"):
                 print("\t\tSetting Updated")
                 print("--------------------------------------------------")
                 return port

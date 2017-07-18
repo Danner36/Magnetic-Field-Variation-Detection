@@ -8,8 +8,8 @@ uint8_t mag_buffer[6];
 int16_t mag_raw[3];
 
 //Delays examples: 0.00555 - 180Hz
-//                 0.00625 - 160Hz
-//                 0.00833 - 120Hz (DEFULT)
+//                 0.00625 - 160Hz (DEFAULT)
+//                 0.00833 - 120Hz
 //                 0.0100 - 100Hz
 //                 0.0125 - 80Hz
 float SYSTEM_DELAY = 0.00625;
@@ -48,6 +48,8 @@ void setup(){
 
   configMag();
 
+  Serial_Clear();
+  
   xTaskCreatePinnedToCore(Task_Serial_Read, "Task_Serial_Read", 10000, NULL, 1, NULL, 0);
 
   xTaskCreatePinnedToCore(Task_Main, "Task_Main", 10000, NULL, 1, NULL, 1);
