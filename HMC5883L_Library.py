@@ -26,6 +26,9 @@ FFT_Ratio = "Placeholder until calculated."
 # File name generated at random to better catalog results.
 File_Number = 0
 
+# Used to store the axis of the FFT.
+Freq_Axis = 0
+
 # Holds the amount of iterations the user inputs.
 Iteration_Amount = 0
 
@@ -278,8 +281,8 @@ def Display_DF(df, i):
           
     # Plot x,y,z axes.
     plt.plot(df.X, label="X-axis")
-    #plt.plot(df.Y, label="Y-axis")
-    #plt.plot(df.Z, label="Z-axis")
+    plt.plot(df.Y, label="Y-axis")
+    plt.plot(df.Z, label="Z-axis")
     
     # Attach axis and title labels.
     plt.ylabel("microTesla (uT)")
@@ -322,7 +325,6 @@ def Display_FFT(df):
     global FFT_Ratio
     global File_Number
     global Freq_Axis
-    global Freq_Sig
     global Iteration_Amount
     global Operating_System
     global Refresh_Rate
@@ -331,13 +333,23 @@ def Display_FFT(df):
     plt.close()
     
     # Preforms an Fast Fourier Transform of passed in array.
-    Get_FFT(df.X)
+    X_FFT = Get_FFT(df.X)
+    Y_FFT = Get_FFT(df.Y)
+    Z_FFT = Get_FFT(df.Z)
     
+    #Creation of list to hold combined FFT's of all 3 axes.
+    Freq_Sig = []
+    
+    # Sums together axes to form the maximum magnetic field strength at that
+    #   point. Excludes X due to it not having an impact besides adding unwanted frequencies.
+    for i in range(0,len(X_FFT)):
+        Freq_Sig.append(Y_FFT[i] + Z_FFT[i])
+        
     # Plots FFT.
     plt.plot(Freq_Axis, Freq_Sig, label="Frequency Composition")
        
     # Gets ratio of highest and lowest points in FFT array.
-    Get_Ratio()
+    Get_Ratio(Freq_Sig)
     
     # Finds correct positioning for ratio text.
     Graph_Height = max(Freq_Sig)*.9
@@ -404,7 +416,7 @@ def Display_Settings():
     
 # Prints out the strength of the signal compared to the background noise.
 #   Uses the ratio to compute strength
-#   Parameter: df - DataFrame
+#   Parameter: df - DataFrame passed in to be parsed.
 #   Parameter: i - Iteration Count for the entire program.
 def Display_Signal_Strength(df,i):
     
@@ -424,7 +436,17 @@ def Display_Signal_Strength(df,i):
         print("Calculating FFT")
     
     #Computes FFT from df.X.
-    Get_FFT(df.X)
+    X_FFT = Get_FFT(df.X)
+    Y_FFT = Get_FFT(df.Y)
+    Z_FFT = Get_FFT(df.Z)
+    
+    #Creation of list to hold combined FFT's of all 3 axes.
+    Freq_Sig = []
+    
+    # Sums together axes to form the maximum magnetic field strength at that
+    #   point. Excludes X due to it not having an impact besides adding unwanted frequencies.
+    for i in range(0,len(X_FFT)):
+        Freq_Sig.append(Y_FFT[i] + Z_FFT[i])
     
     #Computes ratio from FFT data.
     if(Debug_Status):
@@ -432,14 +454,14 @@ def Display_Signal_Strength(df,i):
         print("Calculating Ratio")
     
     #Computes all FFT values.
-    Get_Ratio()
+    Get_Ratio(Freq_Sig)
     
     #Establishes variable to hold avg (local variable).
     FFT_AvgStrength = 0
     
     #Checks for invalid ratio. '----' means there is no standout signal.
     if(FFT_Strength == '----'):
-        #Essentially does nothing
+        #Skips this case.
         three = 1 + 2
         
     #Checks for non full array.
@@ -479,7 +501,6 @@ def Get_FFT(sig):
     
     global Debug_Status
     global Freq_Axis
-    global Freq_Sig
     global Refresh_Rate
     
     #System numbers needed to create appropriate FFT window and axis
@@ -489,23 +510,26 @@ def Get_FFT(sig):
     # Creates correct axis range for data, also creates the fft to be plotted.
     Freq_Sig = np.abs(np.fft.fft(sig, n=N_fft))
     Freq_Axis = np.arange(0, Fs/2, Fs/N_fft)
+    
     if(Debug_Status):
         print("Freq_Sig Created: " + str(len(Freq_Sig)))
     
     # Splices list to only include first half.
     Freq_Sig = Freq_Sig[:int(N_fft/2)]
+    
     if(Debug_Status):
         print("Splitting Freq_Sig, Length = " + str(len(Freq_Sig)))
+        
+    return Freq_Sig
     
     
 # Finds ratio between max point and low mean in array.
 #   Return: ratio - Ratio between highest and lower magntiudes.
-def Get_Ratio():
+def Get_Ratio(Freq_Sig):
     
     global Debug_Status
     global FFT_Strength
     global FFT_Ratio
-    global Freq_Sig
     global Max_Sig
     global Min_Sig
     
@@ -517,19 +541,23 @@ def Get_Ratio():
     
     # Averages the magnitudes to find the mean of the lower spectrum.
     Min_Sig = int(total/10.0)
+    
     if(Debug_Status):
         print("Minimum Signal: " + str(Min_Sig))
     
     # Finds highest frequency magnitude in the signal.
     Max_Sig = int(max(Freq_Sig))
+    
     if(Debug_Status):
         print("Maximum Signal: " + str(Max_Sig))
     
     # Finds the index of the highest magnitude.
     Max_Index = 0
+    
     for i in range(0, len(Freq_Sig)):
         if(int(Freq_Sig[i]) == Max_Sig):
             Max_Index = i
+            
     if(Debug_Status):
         print("Max_Index: " + str(i))
     
@@ -540,6 +568,7 @@ def Get_Ratio():
     else:
         FFT_Strength = "----"
         FFT_Ratio = "----"
+        
     if(Debug_Status):
         print("FFT_Ratio: " +str(FFT_Ratio))
         print("FFT_Strength: " + str(FFT_Strength))
