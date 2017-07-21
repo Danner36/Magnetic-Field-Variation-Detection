@@ -5,7 +5,6 @@ import pandas as pd
 from random import randint
 import serial
 from IPython.display import clear_output
-import pylab
 
 
 ###   SETTINGS   ###
@@ -289,25 +288,26 @@ def Display_DF(df, i):
     # Attach legend box to the top right of graph.
     plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.0)
     
-    # Creates / Saves the DataFrame's graph to a file.
-    print("Saved #" + str(File_Number) + " in: " + "/home/jared/Desktop/mfvd/Saves")
-    
     # Name of file.
-    filename = "Trial :" + str(File_Number)
+    filename = "Trial_" + str(File_Number)
     
     # Assign path to be saved.
     if(Operating_System == "Linux"): 
-        path = r'/home/jared/Desktop/mfvd/Saves'
+        path = r'/home/jared/Desktop/mfvd/Saves/'
     elif(Operating_System == "Windows"):
         path = r'C:/Users/jd17033/Desktop/mfvd/Saves'
+        
+    # Creates / Saves the DataFrame's graph to a file.
+    print("Saved #" + str(File_Number) + " in: " + path)
     
     # Saves the DataFrame as a CSV file.
-    df.to_csv(os.path.join(path, filename), header=True, sep='\t')
+    df.to_csv(os.path.join(path, filename + ".csv"), header=True, sep='\t')
     
-    # Grabs the plot created by (plt2) and sticks into designated path.
-    pylab.savefig(os.path.join(path, filename), bbox_inches='tight', pad_inches=0.5)
+    # Grabs the plot created by plt and sticks into designated path.
+    plt.savefig(os.path.join(path, filename + ".png"), bbox_inches='tight', pad_inches=0.5)
     
-    # Displays plot to screen. (If wanting to save the graph, this has to be called after the save is complete.)
+    # Displays plot to screen. (If wanting to save the graph, this has to be 
+    #   called after the save is complete.)
     plt.show()
     
     print("--------------------------------------------------")
@@ -331,7 +331,7 @@ def Display_FFT(df):
     plt.close()
     
     # Preforms an Fast Fourier Transform of passed in array.
-    Get_FFT(df.X)
+    Get_FFT(df.Y)
     
     # Plots FFT.
     plt.plot(Freq_Axis, Freq_Sig, label="Frequency Composition")
@@ -353,22 +353,23 @@ def Display_FFT(df):
     # Attach legend box to the top right of graph.
     plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.0)
     
-    # Creates / Saves the DataFrame's graph to a file.
-    print("Saved #" + str(File_Number) + " in: " + "/home/jared/Desktop/mfvd/Saves")
-    
     # Name of file.
-    filename = "Trial :" + str(File_Number) + " FFT"
+    filename = "Trial_" + str(File_Number) + " FFT"
     
     # Assign path to be saved.
     if(Operating_System == "Linux"): 
         path = r'/home/jared/Desktop/mfvd/Saves'
     elif(Operating_System == "Windows"):
-        path = r'C:/Users/jd17033/Desktop/mfvd/Saves'
+        path = r'C:/Users/jd17033/Desktop/mfvd/Saves/'
+        
+    # Creates / Saves the DataFrame's graph to a file.
+    print("Saved #" + str(File_Number) + " in: " + path)
     
-    # Grabs the plot created by (plt2) and sticks into designated path.
-    pylab.savefig(os.path.join(path, filename), bbox_inches='tight', pad_inches=0.5)
+    # Grabs the plot created by plt and sticks into designated path.
+    plt.savefig(os.path.join(path, filename + ".png"), bbox_inches='tight', pad_inches=0.5)
     
-    # Displays plot to screen. (If wanting to save the graph, this has to be called after the save is complete.)
+    # Displays plot to screen. (If wanting to save the graph, this has to be 
+    #   called after the save is complete.)
     plt.show()
     
     print("--------------------------------------------------")
@@ -424,7 +425,7 @@ def Display_Signal_Strength(df,i):
         print("Calculating FFT")
     
     #Computes FFT from df.X.
-    Get_FFT(df.X)
+    Get_FFT(df.Y)
     
     #Computes ratio from FFT data.
     if(Debug_Status):

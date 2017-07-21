@@ -8,7 +8,8 @@
             "browse": {
                 "limitSymbolsToIncludedHeaders": false,
                 "path": [
-                    "/home/jared/Arduino/hardware/espressif/esp32/cores/esp32"
+                    "/home/jared/Arduino/hardware/espressif/esp32/cores/esp32",
+                    "${workspaceRoot}"
                 ]
             },
             "intelliSenseMode": "clang-x64"
@@ -22,10 +23,12 @@
             "browse": {
                 "limitSymbolsToIncludedHeaders": false,
                 "path": [
-                    "C:\\Users\\jd17033\\Documents\\Arduino\\hardware\\espressif\\esp32\\cores\\esp32"
+                    "C:\\Users\\jd17033\\Documents\\Arduino\\hardware\\espressif\\esp32\\cores\\esp32",
+                    "${workspaceRoot}"
                 ]
             },
             "intelliSenseMode": "msvc-x64"
         }
-    ]
+    ],
+    "version": 2
 }
