@@ -1,0 +1,1553 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>Software &#8212; Magnetic Field Variation Detection 1.0.0 documentation</title>
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '1.0.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="Magnetic Field Variation Detection" href="index.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="software">
+<h1>Software<a class="headerlink" href="#software" title="Permalink to this headline">¶</a></h1>
+<p><strong>Fair Warning</strong>: This page is very lengthly due to the entire project’s code being displayed.
+Using the navigation menu to the left under <em>Software</em> is advised.</p>
+<div class="section" id="micro-controller">
+<h2>Micro Controller<a class="headerlink" href="#micro-controller" title="Permalink to this headline">¶</a></h2>
+<p>The following software has been developed for Espressif’s ESP32 Development Board using Visual Studio.
+This software utilizes FreeRTOS’s ability for dual core functionality, will remaining simplistic in
+size and scope in the C++ language.</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span>#include &lt;Wire.h&gt;
+
+//Address of the HMC5883L.
+#define MAG_ADDRESS ((char) 0x1E)
+
+//Buffer array used to store bytes from the HMC5883L.
+uint8_t mag_buffer[6];
+
+//Finalized array that holds joined bytes from mag_buffer[].
+int16_t mag_raw[3];
+
+//Delays examples: 0.00555 - 180Hz
+//                 0.00625 - 160Hz (DEFAULT)
+//                 0.00833 - 120Hz
+//                 0.0100 - 100Hz
+//                 0.0125 - 80Hz
+float SYSTEM_DELAY = 0.00625;
+
+//Used to indicate that Jupyter/user is ready.
+boolean Start_Signal = false;
+
+//Status of transmission of Iteration_Amount. True when recieved, false otherwise.
+boolean Iter = false;
+
+//Status of transmission of Operation_Mode. True when recieved, false otherwise.
+boolean Mode = false;
+
+//True when all needed information is recieved. (Start_Sginal &amp; Iter)
+boolean Ready_To_Send = false;
+
+//Status of program state. True causes program to be idle, false triggers
+//   the transmission of data.
+boolean Completed_Cycle = false;
+
+//Struct used to hold values used throughout program.
+struct data{
+
+  //Desired amount of data to be sent from the HMC5883L to Jupyter
+  //   over the serial port.
+  int Iteration_Amount = 0;
+
+  //Used to track the amount of data being send.
+  //   (Goes from 0 to Iteration_Amount)
+  int this_iter = 0;
+
+  //Instructs program to either send information infinitely or until a
+  //   desired amount has been reached.
+  String Operation_Mode = &quot;STATIONARY_MODE&quot;;
+
+};
+struct data user;
+
+/**
+ * Initailzation of: serial port, freeRTOS tasks, and HMC5883L.
+ */
+void setup(){
+
+  Serial.begin(115200);
+
+  Wire.begin();
+
+  configMag();
+
+  Serial_Clear();
+
+  xTaskCreatePinnedToCore(Task_Serial_Read, &quot;Task_Serial_Read&quot;, 10000, NULL, 1, NULL, 0);
+
+  xTaskCreatePinnedToCore(Task_Main, &quot;Task_Main&quot;, 10000, NULL, 1, NULL, 1);
+}
+
+/**
+ * Program should never reach this point.
+ */
+void loop(){
+
+}
+
+/**
+ * Initalizes the HMC5883L by checking for a physical connection,
+ *   setting the desired mode, and sensitivity range.
+ */
+void configMag() {
+  uint8_t mag_name;
+
+  // Checks for connection of HMC5883L.
+  Wire.beginTransmission(MAG_ADDRESS);
+  Wire.write((byte) 0x0A); // Identification Register A
+  Wire.endTransmission();
+
+  Wire.beginTransmission(MAG_ADDRESS);
+  Wire.requestFrom(MAG_ADDRESS, 1);
+  mag_name = Wire.read();
+  Wire.endTransmission();
+
+  // Register 0x00: CONFIG_A
+  // Normal measurement mode (0x00) and 75 Hz ODR (0x18)
+  Wire.beginTransmission(MAG_ADDRESS);
+  Wire.write((byte) 0x00);
+  Wire.write((byte) 0x18);
+  Wire.endTransmission();
+  delay(5);
+
+  // Register 0x01: CONFIG_B
+  // Default range of +/- 130 uT (0x20)
+  Wire.beginTransmission(MAG_ADDRESS);
+  Wire.write((byte) 0x01);
+  Wire.write((byte) 0x20);
+  Wire.endTransmission();
+  delay(5);
+
+  // Register 0x02: MODE
+  // Continuous measurement mode at configured ODR (0x00)
+  // Achieves 160 Hz by using single measurement mode (0x01) and DRDY
+  Wire.beginTransmission(MAG_ADDRESS);
+  Wire.write((byte) 0x02);
+  Wire.write((byte) 0x01);
+  Wire.endTransmission();
+
+  delay(5);
+
+}
+
+/**
+ * Task_Main is repsonsible for handling the process of the program.
+ *   Either promts the transmission of data to Jupyter, or resets
+ *   all values in preperation of next cycle.
+ */
+void Task_Main(void *parameter){
+
+  while (1){
+
+        if (Completed_Cycle){
+
+          //Resets all global variables.
+          Reset();
+
+          //Sends task to idle for 1/10th second to satisfy watchdog timer.
+          delay(10);
+        }
+
+        //Ieration_Amount and Start_Sginal were recieved.
+        if (Ready_To_Send){
+
+          //Iterates up to desired data amount.
+          while (user.this_iter &lt; user.Iteration_Amount){
+
+                //Sends x,y,z values in csv format.
+                Send_Data();
+
+                delay(SYSTEM_DELAY * 1000);
+          }
+
+          //If in CONTINUOUS_MODE, it will infinitely send information
+          //   on the serial port. Otherwise, it will stop and restart.
+          if (user.Operation_Mode != &quot;CONTINUOUS_MODE&quot;){
+                //Signals the program has completed.
+                Completed_Cycle = true;
+          }
+          else{
+                user.this_iter = 0;
+          }
+
+        }
+  }
+}
+
+/**
+ * Checks for serial input to be non-empty. Deciphers the message and
+ *   assigns the message to its appropirate location or variable.
+ */
+void Task_Serial_Read(void *parameter){
+
+  while (1){
+
+        //Serial port must be non-empty and ESP32 isn&#39;t currently sending information.
+        if (Serial.available() &amp;&amp; !Ready_To_Send){
+
+          //Reads in Start Signal from Jupyter.
+          if (!Start_Signal){
+
+                String text = Serial.readString();
+                if(text == &quot;START&quot;){
+
+                  Start_Signal = true;
+                  //Clears serial port of all unwanted or unneccessary information.
+                  Serial_Clear();
+
+                  //Signals to Jupyter to send Data_Type.
+                  Serial.print(SYSTEM_DELAY,5);
+
+                }
+                else{
+                  //Clears serial port of all unwanted or unneccessary information.
+                  Serial_Clear();
+                }
+
+          }
+
+          //Reads Iteration Amount from Jupyter.
+          else if (user.Iteration_Amount == 0 || !Iter){
+
+                //Reads &amp; convers to integer.
+                user.Iteration_Amount = Serial.readString().toInt();
+                Iter = true;
+
+                //Clears serial port of all unwanted or unneccessary information.
+                Serial_Clear();
+
+                //Signals to Jupyter to send Mode of Operation.
+                Serial.print(1);
+          }
+
+          //Reads Operation Mode from Jupyter.
+          else if (user.Operation_Mode == &quot;&quot; || !Mode){
+                //Reads in mode.
+                int temp = Serial.readString().toInt();
+
+                //Checks to see if valid mode.
+                if(temp == 1 || temp == 2){
+                  Mode = true;
+
+                  //Assigns appropirate mode.
+                  if(temp == 1){
+                        user.Operation_Mode = &quot;CONTINUOUS_MODE&quot;;
+                  }
+                  else{
+                        user.Operation_Mode = &quot;STATIONARY_MODE&quot;;
+                  }
+
+                }
+                //Clears serial port of all unwanted or unneccessary information.
+                Serial_Clear();
+          }
+
+          //If all signals have been recieved, begins data transmission.
+          if (Start_Signal &amp;&amp; Iter &amp;&amp; Mode){
+                Ready_To_Send = true;
+
+                //Clears serial port of all unwanted or unneccessary information.
+                Serial_Clear();
+          }
+
+        }
+        //Sends task to idle for 1/10th second to satisfy watchdog timer.
+        delay(10);
+  }
+}
+
+/**
+ * Reads in 6 bytes (2 for each x,y,z) from the HMC5883L and merges them together.
+ */
+void readMag() {
+
+  //Onboard the HMC5883L data is kept in registers 0x03 through 0x08.
+  //   This forces the HMC5883L to hand over the data on these registers.
+  Wire.beginTransmission(MAG_ADDRESS);
+  Wire.write((byte) 0x03);
+  Wire.endTransmission();
+
+  //Requests 6 bytes from HMC5883L.
+  Wire.beginTransmission(MAG_ADDRESS);
+  Wire.requestFrom(MAG_ADDRESS, 6);
+  int i = 0;
+  while(Wire.available())
+  {
+        mag_buffer[i] = Wire.read();
+        i++;
+  }
+  Wire.read();
+  Wire.endTransmission();
+
+  //Combines the bytes into full integers (HMC588L sends MSB first)
+  //           ________ MSB _______   _____ LSB ____
+  mag_raw[0] = (mag_buffer[0] &lt;&lt; 8) | mag_buffer[1];
+  mag_raw[1] = (mag_buffer[2] &lt;&lt; 8) | mag_buffer[3];
+  mag_raw[2] = (mag_buffer[4] &lt;&lt; 8) | mag_buffer[5];
+
+  //Places device into Single Measurement Mode to refill the registers
+  //   after short idling period of 250 microSeconds.
+  Wire.beginTransmission(MAG_ADDRESS);
+  Wire.write((byte) 0x02);
+  Wire.write((byte) 0x01);
+  Wire.endTransmission();
+
+}
+
+/**
+ * Resets the program&#39;s varaibles for next iteration.
+ */
+void Reset(){
+
+  user.Iteration_Amount = 0;
+  user.this_iter = 0;
+  Iter = false;
+  Start_Signal = false;
+  Ready_To_Send = false;
+  Completed_Cycle = false;
+}
+
+/**
+ * Prints the data brought in from the HMC5883L to the serial port.
+ */
+void Send_Data(){
+
+  //Clears serial port of all unwanted or unneccessary information.
+  Serial_Clear();
+
+  //Reads in current magnetometer information.
+  readMag();
+
+  //Sends data to jupyter in CSV format.
+  Serial.print(mag_raw[0], DEC); Serial.print(&quot;,&quot;);
+  Serial.print(mag_raw[1], DEC); Serial.print(&quot;,&quot;);
+  Serial.print(mag_raw[2], DEC); Serial.println();
+
+  //Increments iterated by 1.
+  user.this_iter += 1;
+}
+
+/**
+ * Clears the serial port by reading in all available data until empty.
+ */
+void Serial_Clear(){
+
+  while (Serial.available()){
+
+        int junk = Serial.read();
+
+  }
+}
+</pre></div>
+</div>
+</div>
+<div class="section" id="hmi-jupyter">
+<h2>HMI (Jupyter)<a class="headerlink" href="#hmi-jupyter" title="Permalink to this headline">¶</a></h2>
+<p>Jupyter was chosen to be the interfacing link between the ESP32 and the user due to its ability to run
+python scipts which allows for real time data analytics. Jupyter, being a package in python, also has numerous
+libraries focused on organizing, displaying, and saving data at its disposal. Below are two sets of code, the
+first is the main program which calls upon the library (second) to preform actions upon the incoming data
+stream from the HMC5883L Compass.</p>
+<p><strong>FIRST (Main Program)</strong></p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">HMC5883L_Library</span> <span class="k">as</span> <span class="nn">hmc</span>
+<span class="o">%</span><span class="n">matplotlib</span> <span class="n">inline</span>
+
+<span class="c1">###  MAIN PROGRAM   ###</span>
+
+<span class="c1"># Prompts user to configure settings/options associated with the HMC5883L.</span>
+<span class="n">hmc</span><span class="o">.</span><span class="n">Settings_Config</span><span class="p">()</span>
+
+<span class="n">i</span> <span class="o">=</span> <span class="mi">0</span>
+
+<span class="c1"># Entire program runs on a loop until explicitly exited.</span>
+<span class="k">while</span><span class="p">(</span><span class="mi">1</span><span class="p">):</span>
+
+        <span class="c1"># Clears output terminal.</span>
+        <span class="n">hmc</span><span class="o">.</span><span class="n">clear_output</span><span class="p">()</span>
+
+        <span class="c1"># Responisble for prompting user and recording the input.</span>
+        <span class="n">hmc</span><span class="o">.</span><span class="n">Prompt_Iteration_Amount</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+
+        <span class="c1"># Prepares the ESP32 for data transmission.</span>
+        <span class="n">hmc</span><span class="o">.</span><span class="n">Begin_Signal</span><span class="p">()</span>
+
+        <span class="n">hmc</span><span class="o">.</span><span class="n">Set_Average</span><span class="p">()</span>
+
+        <span class="c1"># Constantly reads in 1 seconds worth of data (160 data points). Prints out</span>
+        <span class="c1">#   strength of signal based on min and max of the FFT&#39;s frequency ratio.</span>
+        <span class="k">if</span><span class="p">(</span><span class="n">hmc</span><span class="o">.</span><span class="n">Operation_Mode</span> <span class="o">==</span> <span class="s2">&quot;CONTINUOUS_MODE&quot;</span><span class="p">):</span>
+                <span class="k">while</span><span class="p">(</span><span class="mi">1</span><span class="p">):</span>
+
+                        <span class="c1"># Collects incoming data from the ESP32/HMC5883L.</span>
+                        <span class="n">df</span> <span class="o">=</span> <span class="n">hmc</span><span class="o">.</span><span class="n">Collect_Data</span><span class="p">()</span>
+
+                        <span class="c1"># Clears output terminal.</span>
+                        <span class="n">hmc</span><span class="o">.</span><span class="n">clear_output</span><span class="p">()</span>
+
+                        <span class="c1"># Displays signal strength to screen.</span>
+                        <span class="n">hmc</span><span class="o">.</span><span class="n">Display_Signal_Strength</span><span class="p">(</span><span class="n">df</span><span class="p">,</span><span class="n">i</span><span class="p">)</span>
+
+        <span class="c1"># Reads in a user set amount of data. Proceeds to save/print out results in table/graph form.</span>
+        <span class="k">elif</span><span class="p">(</span><span class="n">hmc</span><span class="o">.</span><span class="n">Operation_Mode</span> <span class="o">==</span> <span class="s2">&quot;STATIONARY_MODE&quot;</span><span class="p">):</span>
+
+                <span class="c1"># Estimates time until completion of data collection and plotting.</span>
+                <span class="n">hmc</span><span class="o">.</span><span class="n">Time_Until_Done</span><span class="p">()</span>
+
+                <span class="c1"># Collects incoming data from the ESP32/HMC5883L.</span>
+                <span class="n">df</span> <span class="o">=</span> <span class="n">hmc</span><span class="o">.</span><span class="n">Collect_Data</span><span class="p">()</span>
+
+                <span class="c1"># Displays the data collected from the magnetometer.</span>
+                <span class="c1">#hmc.Display_Table(df) #DataFrame Table</span>
+                <span class="n">hmc</span><span class="o">.</span><span class="n">Display_DF</span><span class="p">(</span><span class="n">df</span><span class="p">,</span><span class="n">i</span><span class="p">)</span>  <span class="c1">#DataFrame Graph</span>
+                <span class="n">hmc</span><span class="o">.</span><span class="n">Display_FFT</span><span class="p">(</span><span class="n">df</span><span class="p">)</span>   <span class="c1">#DataFrame FFT</span>
+
+                <span class="c1"># Prompts user to decide if they wish to continue or quit.</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Do you want to Quit? [Y / n]&quot;</span><span class="p">)</span>
+                <span class="n">quit</span> <span class="o">=</span> <span class="nb">input</span><span class="p">()</span>
+                <span class="k">if</span><span class="p">(</span><span class="n">quit</span> <span class="o">==</span> <span class="s1">&#39;Y&#39;</span><span class="p">):</span>
+                        <span class="c1"># Closes serial port.</span>
+                        <span class="n">hmc</span><span class="o">.</span><span class="n">Serial_Close</span><span class="p">()</span>
+                        <span class="k">break</span>
+                <span class="k">else</span><span class="p">:</span>
+                        <span class="n">i</span> <span class="o">=</span> <span class="n">i</span> <span class="o">+</span> <span class="mi">1</span>
+</pre></div>
+</div>
+<p><strong>SECOND (Library)</strong></p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
+<span class="kn">from</span> <span class="nn">random</span> <span class="k">import</span> <span class="n">randint</span>
+<span class="kn">import</span> <span class="nn">serial</span>
+<span class="kn">from</span> <span class="nn">IPython.display</span> <span class="k">import</span> <span class="n">clear_output</span>
+
+
+<span class="c1">###   SETTINGS   ###</span>
+
+
+<span class="c1"># Baudrate setting used in creation of the serial communication line.</span>
+<span class="n">Baud_Rate</span> <span class="o">=</span> <span class="mi">115200</span>
+
+<span class="c1"># Set to True to print out extra information in certain methods.</span>
+<span class="n">Debug_Status</span> <span class="o">=</span> <span class="kc">False</span>
+
+<span class="c1"># List of set amount (3) FFT_Strengths. Used to make a smooth average of data.</span>
+<span class="n">FFT_Arr</span> <span class="o">=</span> <span class="p">[]</span>
+
+<span class="c1"># Ratio of highest to lowest frequencies in the FFT.</span>
+<span class="n">FFT_Ratio</span> <span class="o">=</span> <span class="s2">&quot;Placeholder until calculated.&quot;</span>
+
+<span class="c1"># File name generated at random to better catalog results.</span>
+<span class="n">File_Number</span> <span class="o">=</span> <span class="mi">0</span>
+
+<span class="c1"># Used to store the axis of the FFT.</span>
+<span class="n">Freq_Axis</span> <span class="o">=</span> <span class="mi">0</span>
+
+<span class="c1"># Holds the amount of iterations the user inputs.</span>
+<span class="n">Iteration_Amount</span> <span class="o">=</span> <span class="mi">0</span>
+
+<span class="c1"># Length of the list used to create and hold the average values. Secondary purpose is to</span>
+<span class="c1">#   make sure no real data is recorded until the sensor is calibrated or out of the transient state.</span>
+<span class="n">List_Length</span> <span class="o">=</span> <span class="mi">200</span>
+
+<span class="c1"># Maximum frequency of incoming signal.</span>
+<span class="n">Max_Sig</span> <span class="o">=</span> <span class="mi">0</span>
+
+<span class="c1"># Minimum frequency of incoming signal.</span>
+<span class="n">Min_Sig</span> <span class="o">=</span> <span class="mi">0</span>
+
+<span class="c1"># Operating System beign used. (Windows or Linux) Used to create a serial port.</span>
+<span class="n">Operating_System</span> <span class="o">=</span> <span class="s2">&quot;Linux&quot;</span>
+
+<span class="c1"># Mode of Operation. Continous or stationary. Stationary by default.</span>
+<span class="n">Operation_Mode</span> <span class="o">=</span> <span class="s2">&quot;STATIONARY_MODE&quot;</span>
+
+<span class="c1"># Refresh rate of the system (Hz). SET ON ESP32.</span>
+<span class="n">Refresh_Rate</span> <span class="o">=</span> <span class="mf">0.00625</span>
+
+<span class="c1"># Global serial communication line.</span>
+<span class="n">ser</span> <span class="o">=</span> <span class="n">serial</span><span class="o">.</span><span class="n">Serial</span><span class="p">()</span>
+
+<span class="c1"># Port setting used in creation of the serial communcation line. (Defaulted to Linux)</span>
+<span class="n">Serial_Port</span> <span class="o">=</span> <span class="s1">&#39;/dev/ttyUSB0&#39;</span>
+
+<span class="c1"># Array of length (List_Length) used to create average later used to zero out data.</span>
+<span class="n">X_Arr</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="n">X_Avg</span> <span class="o">=</span> <span class="kc">None</span>
+
+<span class="c1"># Array of length (List_Length) used to create average later used to zero out data.</span>
+<span class="n">Y_Arr</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="n">Y_Avg</span> <span class="o">=</span> <span class="kc">None</span>
+
+<span class="c1"># Array of length (List_Length) used to create average later used to zero out data.</span>
+<span class="n">Z_Arr</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="n">Z_Avg</span> <span class="o">=</span> <span class="kc">None</span>
+
+
+<span class="c1">###   FUNCTIONS   ###</span>
+
+
+<span class="c1"># Reads in a set amount of data cycles at the beginning of the program to set the average</span>
+<span class="c1">#   for each the X, Y, and Z axes.</span>
+<span class="c1">#   Parameter: x - DataFrame axis value for X</span>
+<span class="c1">#   Parameter: y - DataFrame axis value for Y</span>
+<span class="c1">#   Parameter: z - DataFrame axis value for Z</span>
+<span class="k">def</span> <span class="nf">Average_Data</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">):</span>
+
+        <span class="k">global</span> <span class="n">X_Arr</span>
+        <span class="k">global</span> <span class="n">X_Avg</span>
+
+        <span class="k">global</span> <span class="n">Y_Arr</span>
+        <span class="k">global</span> <span class="n">Y_Avg</span>
+
+        <span class="k">global</span> <span class="n">Z_Arr</span>
+        <span class="k">global</span> <span class="n">Z_Avg</span>
+
+        <span class="k">global</span> <span class="n">Debug_Status</span>
+        <span class="k">global</span> <span class="n">List_Length</span>
+
+        <span class="n">x</span> <span class="o">=</span> <span class="nb">round</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">x</span><span class="p">),</span><span class="mi">2</span><span class="p">)</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="nb">round</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">y</span><span class="p">),</span><span class="mi">2</span><span class="p">)</span>
+        <span class="n">z</span> <span class="o">=</span> <span class="nb">round</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">z</span><span class="p">),</span><span class="mi">2</span><span class="p">)</span>
+
+        <span class="c1"># Checks for empty lists and if so, assigns first set of values as averages.</span>
+        <span class="k">if</span><span class="p">(</span><span class="n">X_Avg</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">Y_Avg</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">Z_Avg</span> <span class="o">==</span> <span class="mi">0</span><span class="p">):</span>
+                <span class="n">X_Avg</span> <span class="o">=</span> <span class="n">x</span>
+                <span class="n">X_Arr</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+
+                <span class="n">Y_Avg</span> <span class="o">=</span> <span class="n">y</span>
+                <span class="n">Y_Arr</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">y</span><span class="p">)</span>
+
+                <span class="n">Z_Avg</span> <span class="o">=</span> <span class="n">z</span>
+                <span class="n">Z_Arr</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">z</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># Adds value to list and recalculates average.</span>
+                <span class="c1"># X List</span>
+                <span class="k">if</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">X_Arr</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">List_Length</span><span class="p">):</span>
+                        <span class="n">X_Arr</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+                        <span class="n">X_Avg</span> <span class="o">=</span> <span class="nb">round</span><span class="p">((</span><span class="nb">float</span><span class="p">(</span><span class="nb">sum</span><span class="p">(</span><span class="n">X_Arr</span><span class="p">))</span> <span class="o">/</span> <span class="nb">float</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">X_Arr</span><span class="p">))),</span> <span class="mi">2</span><span class="p">)</span>
+
+                <span class="c1"># Y List</span>
+                <span class="k">if</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">Y_Arr</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">List_Length</span><span class="p">):</span>
+                        <span class="n">Y_Arr</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">y</span><span class="p">)</span>
+                        <span class="n">Y_Avg</span> <span class="o">=</span> <span class="nb">round</span><span class="p">((</span><span class="nb">float</span><span class="p">(</span><span class="nb">sum</span><span class="p">(</span><span class="n">Y_Arr</span><span class="p">))</span> <span class="o">/</span> <span class="nb">float</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">Y_Arr</span><span class="p">))),</span> <span class="mi">2</span><span class="p">)</span>
+
+                <span class="c1"># Z List</span>
+                <span class="k">if</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">Z_Arr</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">List_Length</span><span class="p">):</span>
+                        <span class="n">Z_Arr</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">z</span><span class="p">)</span>
+                        <span class="n">Z_Avg</span> <span class="o">=</span> <span class="nb">round</span><span class="p">((</span><span class="nb">float</span><span class="p">(</span><span class="nb">sum</span><span class="p">(</span><span class="n">Z_Arr</span><span class="p">))</span> <span class="o">/</span> <span class="nb">float</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">Z_Arr</span><span class="p">))),</span> <span class="mi">2</span><span class="p">)</span>
+
+                <span class="k">if</span><span class="p">(</span><span class="n">Debug_Status</span> <span class="ow">and</span> <span class="n">Operation_Mode</span> <span class="o">==</span> <span class="s2">&quot;STATIONARY_MODE&quot;</span><span class="p">):</span>
+                        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;X List: &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">X_Arr</span><span class="p">))</span>
+                        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;X Average: &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">X_Avg</span><span class="p">))</span>
+                        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Y List: &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">Y_Arr</span><span class="p">))</span>
+                        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Y Average: &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">Y_Avg</span><span class="p">))</span>
+                        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Z List: &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">Z_Arr</span><span class="p">))</span>
+                        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Z Average: &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">Z_Avg</span><span class="p">))</span>
+                        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;--------------------------------------------------&quot;</span><span class="p">)</span>
+
+
+<span class="c1"># Appends the axis parameters to the DataFrame parameter. Sorts updated DataFrame.</span>
+<span class="c1">#   Parameter x,y,z: Values to be entered into the DataFrame.</span>
+<span class="c1">#   Parameter df: DataFrame</span>
+<span class="c1">#   Parameter direction: True = acsending order / False = decsending order</span>
+<span class="c1">#   Returns df: Updated DataFrame</span>
+<span class="k">def</span> <span class="nf">Append_Series_to_DataFrame</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">df</span><span class="p">,</span> <span class="n">direction</span><span class="p">):</span>
+
+        <span class="n">df</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">]</span>
+        <span class="n">df</span><span class="o">.</span><span class="n">index</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">index</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">sort_index</span><span class="p">(</span><span class="n">ascending</span><span class="o">=</span><span class="n">direction</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">df</span>
+
+
+<span class="c1"># Establishes a communication channel with the microcontroller.</span>
+<span class="c1">#   Meant to be run at beginning of cycle. Communicates the iteration&#39;s</span>
+<span class="c1">#   desired amount of data. NOTE: Time_Until_Done is a rough estimation.</span>
+<span class="k">def</span> <span class="nf">Begin_Signal</span><span class="p">():</span>
+
+        <span class="k">global</span> <span class="n">Data_Type</span>
+        <span class="k">global</span> <span class="n">Iteration_Amount</span>
+        <span class="k">global</span> <span class="n">Operation_Mode</span>
+        <span class="k">global</span> <span class="n">Refresh_Rate</span>
+        <span class="k">global</span> <span class="n">ser</span>
+
+        <span class="k">global</span> <span class="n">X_Avg</span>
+        <span class="k">global</span> <span class="n">Y_Avg</span>
+        <span class="k">global</span> <span class="n">Z_Avg</span>
+
+        <span class="k">global</span> <span class="n">X_Arr</span>
+        <span class="k">global</span> <span class="n">Y_Arr</span>
+        <span class="k">global</span> <span class="n">Z_Arr</span>
+
+        <span class="n">X_Avg</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="n">X_Arr</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">Y_Avg</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="n">Y_Arr</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">Z_Avg</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="n">Z_Arr</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="c1"># Clears serial port of unnessecary data.</span>
+        <span class="k">while</span><span class="p">(</span><span class="n">ser</span><span class="o">.</span><span class="n">in_waiting</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">):</span>
+                <span class="n">Serial_Clear</span><span class="p">()</span>
+
+        <span class="c1"># Sends signal to ESP32 to start listening for commands.</span>
+        <span class="n">Serial_Send</span><span class="p">(</span><span class="s2">&quot;START&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Waits for the ESP32 to prompt this script for the user&#39;s Iteration_Amount</span>
+        <span class="k">if</span><span class="p">(</span><span class="n">Debug_Status</span><span class="p">):</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Waiting for Iteration_Amount request...&quot;</span><span class="p">)</span>
+        <span class="n">Serial_Recieve</span><span class="p">()</span>
+
+        <span class="c1"># Sends the Iteration_Amount.</span>
+        <span class="n">Serial_Send</span><span class="p">(</span><span class="n">Iteration_Amount</span><span class="p">)</span>
+
+        <span class="k">if</span><span class="p">(</span><span class="n">Debug_Status</span><span class="p">):</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Waiting for Operation_Mode request...&quot;</span><span class="p">)</span>
+        <span class="n">Serial_Recieve</span><span class="p">()</span>
+
+        <span class="c1"># Sends the Operation_Mode.</span>
+        <span class="n">temp</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">if</span><span class="p">(</span><span class="n">Operation_Mode</span> <span class="o">==</span> <span class="s2">&quot;CONTINUOUS_MODE&quot;</span><span class="p">):</span>
+                <span class="n">temp</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="k">else</span><span class="p">:</span>
+                <span class="n">temp</span> <span class="o">=</span> <span class="mi">2</span>
+        <span class="n">Serial_Send</span><span class="p">(</span><span class="n">temp</span><span class="p">)</span>
+
+
+<span class="c1"># Reads in data from ESP32 over the serial port defined below.</span>
+<span class="c1">#   Returns df: Completed DataFrame from recorded data points.</span>
+<span class="k">def</span> <span class="nf">Collect_Data</span><span class="p">():</span>
+
+        <span class="k">global</span> <span class="n">Iteration_Amount</span>
+        <span class="k">global</span> <span class="n">List_Length</span>
+        <span class="k">global</span> <span class="n">ser</span>
+
+        <span class="k">global</span> <span class="n">X_Avg</span>
+        <span class="k">global</span> <span class="n">Y_Avg</span>
+        <span class="k">global</span> <span class="n">Z_Avg</span>
+
+        <span class="c1"># Builds 1st Series.</span>
+        <span class="n">s1</span> <span class="o">=</span> <span class="n">Series_Create</span><span class="p">(</span><span class="s2">&quot;WHOLE&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Builds 2nd Series.</span>
+        <span class="n">s2</span> <span class="o">=</span> <span class="n">Series_Create</span><span class="p">(</span><span class="s2">&quot;WHOLE&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Creates dataframes with appropriate column names from above  series.</span>
+        <span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">([</span><span class="nb">list</span><span class="p">(</span><span class="n">s1</span><span class="p">),</span> <span class="nb">list</span><span class="p">(</span><span class="n">s2</span><span class="p">)],</span>  <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;X&quot;</span><span class="p">,</span> <span class="s2">&quot;Y&quot;</span><span class="p">,</span> <span class="s2">&quot;Z&quot;</span><span class="p">])</span>
+
+        <span class="c1">#Iterator used in data collection.</span>
+        <span class="n">this_iter</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="c1">#Starts at 2 + List_Length to include averaged amount.</span>
+        <span class="k">if</span><span class="p">(</span><span class="n">Operation_Mode</span> <span class="o">==</span> <span class="s2">&quot;STATIONARY_MODE&quot;</span><span class="p">):</span>
+                <span class="n">this_iter</span> <span class="o">=</span> <span class="n">List_Length</span> <span class="o">+</span> <span class="mi">2</span>
+        <span class="c1">#Starts at 2 to not include the average (List_Length)</span>
+        <span class="k">elif</span><span class="p">(</span><span class="n">Operation_Mode</span> <span class="o">==</span> <span class="s2">&quot;CONTINUOUS_MODE&quot;</span><span class="p">):</span>
+                <span class="n">this_iter</span> <span class="o">=</span> <span class="mi">1</span>
+                <span class="n">Iteration_Amount</span> <span class="o">=</span> <span class="mi">160</span>
+
+        <span class="k">while</span><span class="p">(</span><span class="n">this_iter</span> <span class="o">&lt;</span> <span class="n">Iteration_Amount</span><span class="p">):</span>
+
+                <span class="k">if</span><span class="p">(</span><span class="n">Debug_Status</span> <span class="ow">and</span> <span class="n">Operation_Mode</span> <span class="o">==</span> <span class="s2">&quot;STATIONARY_MODE&quot;</span><span class="p">):</span>
+                        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;#:&quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">this_iter</span><span class="p">))</span>
+
+                <span class="c1"># Reads in a string of 3 floats seperates by commas.</span>
+                <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span> <span class="o">=</span> <span class="n">Series_Create</span><span class="p">(</span><span class="s2">&quot;SPLIT&quot;</span><span class="p">)</span>
+
+                <span class="c1"># Subtracts or adds average to the incoming data.</span>
+                <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">c</span> <span class="o">=</span> <span class="n">Zero_Data</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">)</span>
+
+                <span class="k">if</span><span class="p">(</span><span class="n">Debug_Status</span> <span class="ow">and</span> <span class="n">Operation_Mode</span> <span class="o">==</span> <span class="s2">&quot;STATIONARY_MODE&quot;</span><span class="p">):</span>
+                        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Averages &quot;</span> <span class="o">+</span> <span class="s2">&quot;X:&quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">X_Avg</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;  Y:&quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">Y_Avg</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;  Z:&quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">Z_Avg</span><span class="p">))</span>
+                        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Original &quot;</span> <span class="o">+</span> <span class="s2">&quot;X:&quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;  Y:&quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">y</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;  Z:&quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">z</span><span class="p">))</span>
+                        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Zeroed   &quot;</span> <span class="o">+</span> <span class="s2">&quot;X:&quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">a</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;  Y:&quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">b</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;  Z:&quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">c</span><span class="p">))</span>
+                        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;--------------------------------------------------&quot;</span><span class="p">)</span>
+
+                <span class="c1"># Adds new values to DataFrame, then sorts by index value. False = decsending.</span>
+                <span class="n">Append_Series_to_DataFrame</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">df</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+
+                <span class="c1"># Incrementing the iterator</span>
+                <span class="n">this_iter</span> <span class="o">+=</span> <span class="mi">1</span>
+
+        <span class="c1"># Sorts dataframe to make sure n and n-1 indexes are correct.</span>
+        <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">sort_index</span><span class="p">(</span><span class="n">ascending</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">df</span>
+
+
+<span class="c1"># Plots dataframe&#39;s X,Y,Z on a horizontal line graph.</span>
+<span class="c1">#   Expected dataframe to have 3 axis worth of data labelled &#39;X,Y,Z&#39;.</span>
+<span class="c1">#   Parameter df: DataFrame to be graphed.</span>
+<span class="c1">#   Paramter i: Iteration Count for the entire program.</span>
+<span class="k">def</span> <span class="nf">Display_DF</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">i</span><span class="p">):</span>
+
+        <span class="k">global</span> <span class="n">File_Number</span>
+        <span class="k">global</span> <span class="n">Iteration_Amount</span>
+
+        <span class="c1"># Generates random number to be used for identification.</span>
+        <span class="n">File_Number</span> <span class="o">=</span> <span class="n">randint</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">10000</span><span class="p">)</span>
+
+        <span class="c1"># Closes previous instance of plt if beyond first iteration.</span>
+        <span class="k">if</span><span class="p">(</span><span class="n">i</span><span class="o">&gt;</span><span class="mi">0</span><span class="p">):</span>
+                <span class="n">plt</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+        <span class="c1"># Plot x,y,z axes.</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">df</span><span class="o">.</span><span class="n">X</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;X-axis&quot;</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">df</span><span class="o">.</span><span class="n">Y</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;Y-axis&quot;</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">df</span><span class="o">.</span><span class="n">Z</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;Z-axis&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Attach axis and title labels.</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s2">&quot;microTesla (uT)&quot;</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s2">&quot;Time (160Hz) (6.25x10^-3(s))&quot;</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s2">&quot;POWER LINE DETECTION TRIAL #&quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">File_Number</span><span class="p">))</span>
+
+        <span class="c1"># Attach legend box to the top right of graph.</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">legend</span><span class="p">(</span><span class="n">bbox_to_anchor</span><span class="o">=</span><span class="p">(</span><span class="mf">1.05</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">loc</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">borderaxespad</span><span class="o">=</span><span class="mf">0.0</span><span class="p">)</span>
+
+        <span class="c1"># Name of file.</span>
+        <span class="n">filename</span> <span class="o">=</span> <span class="s2">&quot;Trial_&quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">File_Number</span><span class="p">)</span>
+
+        <span class="c1"># Assign path to be saved.</span>
+        <span class="k">if</span><span class="p">(</span><span class="n">Operating_System</span> <span class="o">==</span> <span class="s2">&quot;Linux&quot;</span><span class="p">):</span>
+                <span class="n">path</span> <span class="o">=</span> <span class="sa">r</span><span class="s1">&#39;/home/jared/Desktop/mfvd/Saves/&#39;</span>
+        <span class="k">elif</span><span class="p">(</span><span class="n">Operating_System</span> <span class="o">==</span> <span class="s2">&quot;Windows&quot;</span><span class="p">):</span>
+                <span class="n">path</span> <span class="o">=</span> <span class="sa">r</span><span class="s1">&#39;C:/Users/jd17033/Desktop/mfvd/Saves&#39;</span>
+
+        <span class="c1"># Creates / Saves the DataFrame&#39;s graph to a file.</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Saved #&quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">File_Number</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot; in: &quot;</span> <span class="o">+</span> <span class="n">path</span><span class="p">)</span>
+
+        <span class="c1"># Saves the DataFrame as a CSV file.</span>
+        <span class="n">df</span><span class="o">.</span><span class="n">to_csv</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">filename</span> <span class="o">+</span> <span class="s2">&quot;.csv&quot;</span><span class="p">),</span> <span class="n">header</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">sep</span><span class="o">=</span><span class="s1">&#39;</span><span class="se">\t</span><span class="s1">&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Grabs the plot created by plt and sticks into designated path.</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">filename</span> <span class="o">+</span> <span class="s2">&quot;.png&quot;</span><span class="p">),</span> <span class="n">bbox_inches</span><span class="o">=</span><span class="s1">&#39;tight&#39;</span><span class="p">,</span> <span class="n">pad_inches</span><span class="o">=</span><span class="mf">0.5</span><span class="p">)</span>
+
+        <span class="c1"># Displays plot to screen. (If wanting to save the graph, this has to be</span>
+        <span class="c1">#   called after the save is complete.)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;--------------------------------------------------&quot;</span><span class="p">)</span>
+
+
+<span class="c1"># Applys Fast Fourier Transform to 60Hz signal at 160Hz sampling rate.</span>
+<span class="c1">#   Allows for signal indication further from the 60Hz wire by integrating</span>
+<span class="c1">#   it back upon itself.</span>
+<span class="c1">#   Parameter: df - DataFrame to apply FFT.</span>
+<span class="k">def</span> <span class="nf">Display_FFT</span><span class="p">(</span><span class="n">df</span><span class="p">):</span>
+
+        <span class="k">global</span> <span class="n">FFT_Ratio</span>
+        <span class="k">global</span> <span class="n">File_Number</span>
+        <span class="k">global</span> <span class="n">Freq_Axis</span>
+        <span class="k">global</span> <span class="n">Iteration_Amount</span>
+        <span class="k">global</span> <span class="n">Operating_System</span>
+        <span class="k">global</span> <span class="n">Refresh_Rate</span>
+
+        <span class="c1"># Closes previous instance of plt.</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+        <span class="c1"># Preforms an Fast Fourier Transform of passed in array.</span>
+        <span class="n">X_FFT</span> <span class="o">=</span> <span class="n">Get_FFT</span><span class="p">(</span><span class="n">df</span><span class="o">.</span><span class="n">X</span><span class="p">)</span>
+        <span class="n">Y_FFT</span> <span class="o">=</span> <span class="n">Get_FFT</span><span class="p">(</span><span class="n">df</span><span class="o">.</span><span class="n">Y</span><span class="p">)</span>
+        <span class="n">Z_FFT</span> <span class="o">=</span> <span class="n">Get_FFT</span><span class="p">(</span><span class="n">df</span><span class="o">.</span><span class="n">Z</span><span class="p">)</span>
+
+        <span class="c1">#Creation of list to hold combined FFT&#39;s of all 3 axes.</span>
+        <span class="n">Freq_Sig</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="c1"># Sums together axes to form the maximum magnetic field strength at that</span>
+        <span class="c1">#   point. Excludes X due to it not having an impact besides adding unwanted frequencies.</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="nb">len</span><span class="p">(</span><span class="n">X_FFT</span><span class="p">)):</span>
+                <span class="n">Freq_Sig</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Z_FFT</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+
+        <span class="c1"># Plots FFT.</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">Freq_Axis</span><span class="p">,</span> <span class="n">Freq_Sig</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;Frequency Composition&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Gets ratio of highest and lowest points in FFT array.</span>
+        <span class="n">Get_Ratio</span><span class="p">(</span><span class="n">Freq_Sig</span><span class="p">)</span>
+
+        <span class="c1"># Finds correct positioning for ratio text.</span>
+        <span class="n">Graph_Height</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">Freq_Sig</span><span class="p">)</span><span class="o">*.</span><span class="mi">9</span>
+
+        <span class="c1"># Places text box with ratio of the FFT array.</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="n">Graph_Height</span><span class="p">,</span> <span class="s2">&quot;Ratio &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">FFT_Ratio</span><span class="p">),</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">15</span><span class="p">)</span>
+
+        <span class="c1"># Attach axis and title labels.</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s2">&quot;FFT of Signal #&quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">File_Number</span><span class="p">))</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s2">&quot;FFT Magnitude&quot;</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s2">&quot;Frequency (Hz)&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Attach legend box to the top right of graph.</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">legend</span><span class="p">(</span><span class="n">bbox_to_anchor</span><span class="o">=</span><span class="p">(</span><span class="mf">1.05</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">loc</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">borderaxespad</span><span class="o">=</span><span class="mf">0.0</span><span class="p">)</span>
+
+        <span class="c1"># Name of file.</span>
+        <span class="n">filename</span> <span class="o">=</span> <span class="s2">&quot;Trial_&quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">File_Number</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot; FFT&quot;</span>
+
+        <span class="c1"># Assign path to be saved.</span>
+        <span class="k">if</span><span class="p">(</span><span class="n">Operating_System</span> <span class="o">==</span> <span class="s2">&quot;Linux&quot;</span><span class="p">):</span>
+                <span class="n">path</span> <span class="o">=</span> <span class="sa">r</span><span class="s1">&#39;/home/jared/Desktop/mfvd/Saves&#39;</span>
+        <span class="k">elif</span><span class="p">(</span><span class="n">Operating_System</span> <span class="o">==</span> <span class="s2">&quot;Windows&quot;</span><span class="p">):</span>
+                <span class="n">path</span> <span class="o">=</span> <span class="sa">r</span><span class="s1">&#39;C:/Users/jd17033/Desktop/mfvd/Saves/&#39;</span>
+
+        <span class="c1"># Creates / Saves the DataFrame&#39;s graph to a file.</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Saved #&quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">File_Number</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot; in: &quot;</span> <span class="o">+</span> <span class="n">path</span><span class="p">)</span>
+
+        <span class="c1"># Grabs the plot created by plt and sticks into designated path.</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">filename</span> <span class="o">+</span> <span class="s2">&quot;.png&quot;</span><span class="p">),</span> <span class="n">bbox_inches</span><span class="o">=</span><span class="s1">&#39;tight&#39;</span><span class="p">,</span> <span class="n">pad_inches</span><span class="o">=</span><span class="mf">0.5</span><span class="p">)</span>
+
+        <span class="c1"># Displays plot to screen. (If wanting to save the graph, this has to be</span>
+        <span class="c1">#   called after the save is complete.)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;--------------------------------------------------&quot;</span><span class="p">)</span>
+
+
+<span class="c1"># Prints out entire dataframe to screen.</span>
+<span class="c1">#   Parameter df: DataFrame to be printed.</span>
+<span class="k">def</span> <span class="nf">Display_Table</span><span class="p">(</span><span class="n">df</span><span class="p">):</span>
+
+        <span class="c1"># Print DataFrame.</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">df</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;--------------------------------------------------&quot;</span><span class="p">)</span>
+
+
+<span class="c1"># Displays all current settings, their values, and or their status.</span>
+<span class="k">def</span> <span class="nf">Display_Settings</span><span class="p">():</span>
+
+        <span class="k">global</span> <span class="n">Baud_Rate</span>
+        <span class="k">global</span> <span class="n">Debug_Status</span>
+        <span class="k">global</span> <span class="n">Operation_Mode</span>
+        <span class="k">global</span> <span class="n">Operating_System</span>
+        <span class="k">global</span> <span class="n">Serial_Port</span>
+
+
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\t\t</span><span class="s2">CURRENT SETTINGS&quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Operating System: &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">Operating_System</span><span class="p">))</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Operation Mode: &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">Operation_Mode</span><span class="p">))</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Baudrate: &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">Baud_Rate</span><span class="p">))</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Serial Port: &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">Serial_Port</span><span class="p">))</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Debug Status: &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">Debug_Status</span><span class="p">))</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;--------------------------------------------------&quot;</span><span class="p">)</span>
+
+
+<span class="c1"># Prints out the strength of the signal compared to the background noise.</span>
+<span class="c1">#   Uses the ratio to compute strength</span>
+<span class="c1">#   Parameter: df - DataFrame passed in to be parsed.</span>
+<span class="c1">#   Parameter: i - Iteration Count for the entire program.</span>
+<span class="k">def</span> <span class="nf">Display_Signal_Strength</span><span class="p">(</span><span class="n">df</span><span class="p">,</span><span class="n">i</span><span class="p">):</span>
+
+        <span class="k">global</span> <span class="n">Debug_Status</span>
+        <span class="k">global</span> <span class="n">FFT_Arr</span>
+        <span class="k">global</span> <span class="n">FFT_Strength</span>
+        <span class="k">global</span> <span class="n">Max_Sig</span>
+        <span class="k">global</span> <span class="n">Min_Sig</span>
+
+        <span class="c1">#Checks for first iteration.</span>
+        <span class="k">if</span><span class="p">(</span><span class="n">i</span> <span class="o">==</span> <span class="mi">0</span><span class="p">):</span>
+                <span class="n">plt</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+        <span class="c1">#Computes FFT from passed in array.</span>
+        <span class="k">if</span><span class="p">(</span><span class="n">Debug_Status</span><span class="p">):</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Calculating FFT&quot;</span><span class="p">)</span>
+
+        <span class="c1">#Computes FFT from df.X.</span>
+        <span class="n">X_FFT</span> <span class="o">=</span> <span class="n">Get_FFT</span><span class="p">(</span><span class="n">df</span><span class="o">.</span><span class="n">X</span><span class="p">)</span>
+        <span class="n">Y_FFT</span> <span class="o">=</span> <span class="n">Get_FFT</span><span class="p">(</span><span class="n">df</span><span class="o">.</span><span class="n">Y</span><span class="p">)</span>
+        <span class="n">Z_FFT</span> <span class="o">=</span> <span class="n">Get_FFT</span><span class="p">(</span><span class="n">df</span><span class="o">.</span><span class="n">Z</span><span class="p">)</span>
+
+        <span class="c1">#Creation of list to hold combined FFT&#39;s of all 3 axes.</span>
+        <span class="n">Freq_Sig</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="c1"># Sums together axes to form the maximum magnetic field strength at that</span>
+        <span class="c1">#   point. Excludes X due to it not having an impact besides adding unwanted frequencies.</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="nb">len</span><span class="p">(</span><span class="n">X_FFT</span><span class="p">)):</span>
+                <span class="n">Freq_Sig</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">X_FFT</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">+</span> <span class="n">Z_FFT</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+
+        <span class="c1">#Computes ratio from FFT data.</span>
+        <span class="k">if</span><span class="p">(</span><span class="n">Debug_Status</span><span class="p">):</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Calculating Ratio&quot;</span><span class="p">)</span>
+
+        <span class="c1">#Computes all FFT values.</span>
+        <span class="n">Get_Ratio</span><span class="p">(</span><span class="n">Freq_Sig</span><span class="p">)</span>
+
+        <span class="c1">#Establishes variable to hold avg (local variable).</span>
+        <span class="n">FFT_AvgStrength</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="c1">#Checks for invalid ratio. &#39;----&#39; means there is no standout signal.</span>
+        <span class="k">if</span><span class="p">(</span><span class="n">FFT_Strength</span> <span class="o">==</span> <span class="s1">&#39;----&#39;</span><span class="p">):</span>
+                <span class="c1">#Skips this case.</span>
+                <span class="n">three</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">+</span> <span class="mi">2</span>
+
+        <span class="c1">#Checks for non full array.</span>
+        <span class="k">elif</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">FFT_Arr</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">3</span><span class="p">):</span>
+
+                <span class="c1"># Appends new Strength to array.</span>
+                <span class="n">FFT_Arr</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">FFT_Strength</span><span class="p">)</span>
+
+        <span class="c1">#Array if full, pops out last and pushes in new. Averages and prints data to screen.</span>
+        <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># Shifts [0]-&gt;[1]-&gt;[2] and sets [0] to new value.</span>
+                <span class="n">FFT_Arr</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="n">FFT_Arr</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+                <span class="n">FFT_Arr</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">FFT_Arr</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="n">FFT_Arr</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">FFT_Strength</span>
+
+                <span class="c1"># Averages array.</span>
+                <span class="n">FFT_AvgStrength</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">sum</span><span class="p">(</span><span class="n">FFT_Arr</span><span class="p">)</span><span class="o">/</span><span class="nb">len</span><span class="p">(</span><span class="n">FFT_Arr</span><span class="p">))</span>
+
+                <span class="c1"># Displays Avgerage Signal Strength.</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;          &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">FFT_AvgStrength</span><span class="p">))</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span><span class="p">(</span><span class="n">Debug_Status</span><span class="p">):</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Filling Array: &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">FFT_Arr</span><span class="p">))</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Individual Signal Strength: &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">FFT_Strength</span><span class="p">))</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Average Signal Strength: &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">FFT_AvgStrength</span><span class="p">))</span>
+
+
+<span class="c1"># Conducts and Fast Fourier Transform of the given data.</span>
+<span class="c1">#   Parameter: sig - Array of data to be transformed.</span>
+<span class="c1">#   Returns: freqsig - Integrated signal.</span>
+<span class="c1">#   Returns: freqaxis - Axis range on which the FFT should be plotted.</span>
+<span class="k">def</span> <span class="nf">Get_FFT</span><span class="p">(</span><span class="n">sig</span><span class="p">):</span>
+
+        <span class="k">global</span> <span class="n">Debug_Status</span>
+        <span class="k">global</span> <span class="n">Freq_Axis</span>
+        <span class="k">global</span> <span class="n">Refresh_Rate</span>
+
+        <span class="c1">#System numbers needed to create appropriate FFT window and axis</span>
+        <span class="n">N_fft</span> <span class="o">=</span> <span class="mi">160</span>
+        <span class="n">Fs</span> <span class="o">=</span> <span class="mi">1</span><span class="o">/</span><span class="n">Refresh_Rate</span>
+
+        <span class="c1"># Creates correct axis range for data, also creates the fft to be plotted.</span>
+        <span class="n">Freq_Sig</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">fft</span><span class="o">.</span><span class="n">fft</span><span class="p">(</span><span class="n">sig</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="n">N_fft</span><span class="p">))</span>
+        <span class="n">Freq_Axis</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">Fs</span><span class="o">/</span><span class="mi">2</span><span class="p">,</span> <span class="n">Fs</span><span class="o">/</span><span class="n">N_fft</span><span class="p">)</span>
+
+        <span class="k">if</span><span class="p">(</span><span class="n">Debug_Status</span><span class="p">):</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Freq_Sig Created: &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">Freq_Sig</span><span class="p">)))</span>
+
+        <span class="c1"># Splices list to only include first half.</span>
+        <span class="n">Freq_Sig</span> <span class="o">=</span> <span class="n">Freq_Sig</span><span class="p">[:</span><span class="nb">int</span><span class="p">(</span><span class="n">N_fft</span><span class="o">/</span><span class="mi">2</span><span class="p">)]</span>
+
+        <span class="k">if</span><span class="p">(</span><span class="n">Debug_Status</span><span class="p">):</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Splitting Freq_Sig, Length = &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">Freq_Sig</span><span class="p">)))</span>
+
+        <span class="k">return</span> <span class="n">Freq_Sig</span>
+
+
+<span class="c1"># Finds ratio between max point and low mean in array.</span>
+<span class="c1">#   Return: ratio - Ratio between highest and lower magntiudes.</span>
+<span class="k">def</span> <span class="nf">Get_Ratio</span><span class="p">(</span><span class="n">Freq_Sig</span><span class="p">):</span>
+
+        <span class="k">global</span> <span class="n">Debug_Status</span>
+        <span class="k">global</span> <span class="n">FFT_Strength</span>
+        <span class="k">global</span> <span class="n">FFT_Ratio</span>
+        <span class="k">global</span> <span class="n">Max_Sig</span>
+        <span class="k">global</span> <span class="n">Min_Sig</span>
+
+        <span class="n">total</span> <span class="o">=</span> <span class="mf">0.0</span>
+
+        <span class="c1"># Sums up 10 frequencies near beginning of range.</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span><span class="mi">20</span><span class="p">):</span>
+                <span class="n">total</span> <span class="o">+=</span> <span class="n">Freq_Sig</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+
+        <span class="c1"># Averages the magnitudes to find the mean of the lower spectrum.</span>
+        <span class="n">Min_Sig</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">total</span><span class="o">/</span><span class="mf">10.0</span><span class="p">)</span>
+
+        <span class="k">if</span><span class="p">(</span><span class="n">Debug_Status</span><span class="p">):</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Minimum Signal: &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">Min_Sig</span><span class="p">))</span>
+
+        <span class="c1"># Finds highest frequency magnitude in the signal.</span>
+        <span class="n">Max_Sig</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="n">Freq_Sig</span><span class="p">))</span>
+
+        <span class="k">if</span><span class="p">(</span><span class="n">Debug_Status</span><span class="p">):</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Maximum Signal: &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">Max_Sig</span><span class="p">))</span>
+
+        <span class="c1"># Finds the index of the highest magnitude.</span>
+        <span class="n">Max_Index</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">Freq_Sig</span><span class="p">)):</span>
+                <span class="k">if</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">Freq_Sig</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="o">==</span> <span class="n">Max_Sig</span><span class="p">):</span>
+                        <span class="n">Max_Index</span> <span class="o">=</span> <span class="n">i</span>
+
+        <span class="k">if</span><span class="p">(</span><span class="n">Debug_Status</span><span class="p">):</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Max_Index: &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">))</span>
+
+        <span class="c1"># If within certain range of frequencies. Returns ratio. Otherwise, &#39;----&#39; (Nothing).</span>
+        <span class="k">if</span><span class="p">(</span><span class="mi">65</span><span class="o">&lt;</span><span class="n">Max_Index</span> <span class="ow">and</span> <span class="n">Max_Index</span><span class="o">&lt;</span><span class="mi">80</span><span class="p">):</span>
+                <span class="n">FFT_Ratio</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">Max_Sig</span><span class="p">))</span> <span class="o">+</span> <span class="s2">&quot;:&quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">Min_Sig</span><span class="p">))</span>
+                <span class="n">FFT_Strength</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">Max_Sig</span><span class="o">/</span><span class="n">Min_Sig</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+                <span class="n">FFT_Strength</span> <span class="o">=</span> <span class="s2">&quot;----&quot;</span>
+                <span class="n">FFT_Ratio</span> <span class="o">=</span> <span class="s2">&quot;----&quot;</span>
+
+        <span class="k">if</span><span class="p">(</span><span class="n">Debug_Status</span><span class="p">):</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;FFT_Ratio: &quot;</span> <span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">FFT_Ratio</span><span class="p">))</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;FFT_Strength: &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">FFT_Strength</span><span class="p">))</span>
+
+
+<span class="c1"># Creates a 60Hz signal for test and verification purposes.</span>
+<span class="k">def</span> <span class="nf">Generate_60Hz</span><span class="p">():</span>
+
+        <span class="n">Fs</span> <span class="o">=</span> <span class="mf">0.00625</span>
+        <span class="n">t</span> <span class="o">=</span> <span class="mi">1</span><span class="o">/</span><span class="n">Fs</span>
+        <span class="n">f</span> <span class="o">=</span> <span class="mi">60</span>
+
+        <span class="n">Y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="o">*</span><span class="n">f</span><span class="o">*</span><span class="n">t</span><span class="p">)</span>
+        <span class="n">signal</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">fft</span><span class="o">.</span><span class="n">fft</span><span class="p">(</span><span class="n">Y</span><span class="p">))</span>
+
+        <span class="n">plt</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s2">&quot;60Hz TEST SIGNAL&quot;</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">signal</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+
+
+<span class="c1"># Prompts the user to input an amount of data points they want gathered</span>
+<span class="c1">#   from the IMU.</span>
+<span class="c1">#   Returns Iteration_Amount: Amount of data points.</span>
+<span class="k">def</span> <span class="nf">Prompt_Iteration_Amount</span><span class="p">(</span><span class="n">Iteration</span><span class="p">):</span>
+
+        <span class="k">global</span> <span class="n">Iteration_Amount</span>
+        <span class="k">global</span> <span class="n">List_Length</span>
+        <span class="k">global</span> <span class="n">Operation_Mode</span>
+
+        <span class="k">if</span><span class="p">(</span><span class="n">Operation_Mode</span> <span class="o">==</span> <span class="s2">&quot;STATIONARY_MODE&quot;</span><span class="p">):</span>
+
+                <span class="c1"># Prints the iteration number.</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Iteration #&quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">Iteration</span><span class="p">))</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;--------------------------------------------------&quot;</span><span class="p">)</span>
+
+                <span class="c1"># Prompts user to enter an amount of data points.</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Enter desired data points: &quot;</span><span class="p">)</span>
+
+                <span class="k">while</span><span class="p">(</span><span class="mi">1</span><span class="p">):</span>
+                        <span class="n">choice</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">input</span><span class="p">())</span>
+                        <span class="k">if</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">choice</span><span class="p">,</span> <span class="nb">int</span><span class="p">)):</span>
+                                <span class="c1"># List_Length is tacked on to be able to form an average</span>
+                                <span class="c1">#   and still recieve requested amount.</span>
+                                <span class="n">Iteration_Amount</span> <span class="o">=</span> <span class="n">choice</span> <span class="o">+</span> <span class="n">List_Length</span>
+                                <span class="k">break</span>
+                        <span class="k">else</span><span class="p">:</span>
+                                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Enter a integer type&quot;</span><span class="p">)</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;--------------------------------------------------&quot;</span><span class="p">)</span>
+
+        <span class="k">elif</span><span class="p">(</span><span class="n">Operation_Mode</span> <span class="o">==</span> <span class="s2">&quot;CONTINUOUS_MODE&quot;</span><span class="p">):</span>
+                <span class="n">Iteration_Amount</span> <span class="o">=</span> <span class="mi">160</span> <span class="o">+</span> <span class="n">List_Length</span>
+
+
+<span class="c1"># Reads in / clears unwanted data from serial port.</span>
+<span class="k">def</span> <span class="nf">Serial_Clear</span><span class="p">():</span>
+
+        <span class="k">global</span> <span class="n">Debug_Status</span>
+        <span class="k">global</span> <span class="n">ser</span>
+
+        <span class="c1"># Checks if serial port is empty.</span>
+        <span class="k">if</span><span class="p">(</span><span class="n">ser</span><span class="o">.</span><span class="n">in_waiting</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">):</span>
+
+                <span class="c1"># If not, reads in until empty.</span>
+                <span class="n">junk</span> <span class="o">=</span> <span class="n">ser</span><span class="o">.</span><span class="n">readline</span><span class="p">()</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span>
+
+                <span class="k">if</span><span class="p">(</span><span class="n">Debug_Status</span><span class="p">):</span>
+                        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Cleared: &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">junk</span><span class="p">))</span>
+
+
+<span class="c1">#Closes the serial port.</span>
+<span class="k">def</span> <span class="nf">Serial_Close</span><span class="p">():</span>
+
+        <span class="k">global</span> <span class="n">ser</span>
+
+        <span class="n">ser</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+
+<span class="c1"># Configures and opens a serical communication line.</span>
+<span class="k">def</span> <span class="nf">Serial_Create</span><span class="p">():</span>
+
+        <span class="k">global</span> <span class="n">Baud_Rate</span>
+        <span class="k">global</span> <span class="n">ser</span>
+        <span class="k">global</span> <span class="n">Serial_Port</span>
+
+
+        <span class="c1">#Establishes serial port if not already open.</span>
+        <span class="k">if</span><span class="p">(</span><span class="n">ser</span><span class="o">.</span><span class="n">is_open</span> <span class="o">==</span> <span class="kc">False</span><span class="p">):</span>
+                <span class="n">ser</span><span class="o">.</span><span class="n">port</span> <span class="o">=</span> <span class="n">Serial_Port</span>
+                <span class="n">ser</span><span class="o">.</span><span class="n">baudrate</span> <span class="o">=</span> <span class="n">Baud_Rate</span>
+                <span class="n">ser</span><span class="o">.</span><span class="n">timeout</span> <span class="o">=</span> <span class="mi">1</span>
+                <span class="n">ser</span><span class="o">.</span><span class="n">open</span><span class="p">()</span>
+
+
+<span class="c1"># Reads in 1 bit values on the serial communication line.</span>
+<span class="c1">#   Returns message: Input read in from serial line.</span>
+<span class="k">def</span> <span class="nf">Serial_Recieve</span><span class="p">():</span>
+
+        <span class="k">global</span> <span class="n">Debug_Status</span>
+        <span class="k">global</span> <span class="n">ser</span>
+
+        <span class="k">while</span><span class="p">(</span><span class="mi">1</span><span class="p">):</span>
+                <span class="k">if</span><span class="p">(</span><span class="n">ser</span><span class="o">.</span><span class="n">in_waiting</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">):</span>
+                        <span class="n">message</span> <span class="o">=</span> <span class="n">ser</span><span class="o">.</span><span class="n">readline</span><span class="p">()</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span>
+
+                        <span class="k">if</span><span class="p">(</span><span class="n">Debug_Status</span><span class="p">):</span>
+                                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Received: &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">message</span><span class="p">))</span>
+                        <span class="k">break</span>
+        <span class="k">return</span> <span class="n">message</span>
+
+
+<span class="c1"># Sends given message over serial port.</span>
+<span class="c1">#   Parameter message: Object to send over the serial line.</span>
+<span class="k">def</span> <span class="nf">Serial_Send</span><span class="p">(</span><span class="n">message</span><span class="p">):</span>
+
+        <span class="k">global</span> <span class="n">Debug_Status</span>
+        <span class="k">global</span> <span class="n">ser</span>
+
+        <span class="c1"># Converts to string for easier decoding on ESP32.</span>
+        <span class="n">message</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">message</span><span class="p">)</span>
+
+        <span class="k">if</span><span class="p">(</span><span class="n">Debug_Status</span><span class="p">):</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Sending: &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">message</span><span class="p">))</span>
+
+        <span class="c1"># Due to message being of type string, needs to be encoded.</span>
+        <span class="n">ser</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">message</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+
+
+<span class="c1"># Waits for data to be present on the serial port. Reads in and creates Series once present.</span>
+<span class="c1">#   Parameter text: Used to indicate if series is wanted, or individual floats.</span>
+<span class="c1">#   Returns s: Created Series.</span>
+<span class="c1">#   Returns line.split(&quot;,&quot;): Individual variables x,y,z.</span>
+<span class="k">def</span> <span class="nf">Series_Create</span><span class="p">(</span><span class="n">text</span><span class="p">):</span>
+
+        <span class="k">global</span> <span class="n">Debug_Status</span>
+        <span class="k">global</span> <span class="n">ser</span>
+
+        <span class="k">if</span><span class="p">(</span><span class="n">Debug_Status</span> <span class="ow">and</span> <span class="n">Operation_Mode</span> <span class="o">==</span> <span class="s2">&quot;STATIONARY_MODE&quot;</span><span class="p">):</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Waiting to create series&quot;</span><span class="p">)</span>
+
+        <span class="k">while</span><span class="p">(</span><span class="mi">1</span><span class="p">):</span>
+
+                <span class="c1">#Checks for non-empty serial port.</span>
+                <span class="k">if</span><span class="p">(</span><span class="n">ser</span><span class="o">.</span><span class="n">in_waiting</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">):</span>
+                        <span class="n">line</span> <span class="o">=</span> <span class="n">ser</span><span class="o">.</span><span class="n">readline</span><span class="p">()</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span>
+
+                        <span class="k">if</span><span class="p">(</span><span class="n">text</span> <span class="o">==</span> <span class="s2">&quot;SPLIT&quot;</span><span class="p">):</span>
+                                <span class="k">if</span><span class="p">(</span><span class="n">Debug_Status</span> <span class="ow">and</span> <span class="n">Operation_Mode</span> <span class="o">==</span> <span class="s2">&quot;STATIONARY_MODE&quot;</span><span class="p">):</span>
+                                        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Series created from &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">line</span><span class="p">))</span>
+                                        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+                                <span class="k">return</span> <span class="n">line</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;,&quot;</span><span class="p">)</span>
+
+                        <span class="k">elif</span><span class="p">(</span><span class="n">text</span> <span class="o">==</span> <span class="s2">&quot;WHOLE&quot;</span><span class="p">):</span>
+                                <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;,&quot;</span><span class="p">)</span>
+                                <span class="c1"># Zeros data to better show alterations in variation.</span>
+                                <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">c</span> <span class="o">=</span> <span class="n">Zero_Data</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">)</span>
+                                <span class="n">s</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">([</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">c</span><span class="p">])</span>
+
+                                <span class="k">if</span><span class="p">(</span><span class="n">Debug_Status</span> <span class="ow">and</span> <span class="n">Operation_Mode</span> <span class="o">==</span> <span class="s2">&quot;STATIONARY_MODE&quot;</span><span class="p">):</span>
+                                        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Series created from &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">line</span><span class="p">))</span>
+                                        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+                                        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Averages &quot;</span> <span class="o">+</span> <span class="s2">&quot;X:&quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">X_Avg</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;  Y:&quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">Y_Avg</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;  Z:&quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">Z_Avg</span><span class="p">))</span>
+                                        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Original &quot;</span> <span class="o">+</span> <span class="s2">&quot;X:&quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;  Y:&quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">y</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;  Z:&quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">z</span><span class="p">))</span>
+                                        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Zeroed   &quot;</span> <span class="o">+</span> <span class="s2">&quot;X:&quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">a</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;  Y:&quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">b</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;  Z:&quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">c</span><span class="p">))</span>
+                                <span class="k">return</span> <span class="n">s</span>
+
+
+<span class="c1"># Reads in certain amount (List_Length) to form average.</span>
+<span class="k">def</span> <span class="nf">Set_Average</span><span class="p">():</span>
+
+        <span class="c1"># Reads in a set amount of cycles to do both establish an average</span>
+        <span class="c1">#   to zero out data, and exclude the uncalibrated data from the program.</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">List_Length</span> <span class="o">-</span> <span class="mi">1</span><span class="p">):</span>
+
+                <span class="c1"># Reads in a string of 3 floats seperates by commas.</span>
+                <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span> <span class="o">=</span> <span class="n">Series_Create</span><span class="p">(</span><span class="s2">&quot;SPLIT&quot;</span><span class="p">)</span>
+
+                <span class="c1"># To exclude the transient repsonse from the average, the program only formulates</span>
+                <span class="c1">#   the average based on the 2nd half of the length of List_Length.</span>
+                <span class="c1">#   EXAMPLE: List_Length = 200 so it will discard the first 100 values and form an</span>
+                <span class="c1">#            average with the last 100.</span>
+                <span class="k">if</span><span class="p">(</span><span class="n">i</span><span class="o">&gt;</span><span class="n">List_Length</span><span class="o">/</span><span class="mi">2</span><span class="p">):</span>
+                        <span class="n">Average_Data</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">)</span>
+                <span class="k">if</span><span class="p">(</span><span class="n">Debug_Status</span> <span class="ow">and</span> <span class="n">Operation_Mode</span> <span class="o">==</span> <span class="s2">&quot;STATIONARY_MODE&quot;</span><span class="p">):</span>
+                        <span class="nb">print</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+                        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;--------------------------------------------------&quot;</span><span class="p">)</span>
+
+
+<span class="c1"># Prompts the user to enter a baudrate to be used in serial communication.</span>
+<span class="c1">#   Returns choice: User entered baudrate.</span>
+<span class="k">def</span> <span class="nf">Set_Baudrate</span><span class="p">():</span>
+
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Allowed Baud Rates: </span><span class="se">\t</span><span class="s2">110</span><span class="se">\t</span><span class="s2">300</span><span class="se">\t</span><span class="s2">600 &quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;                    </span><span class="se">\t</span><span class="s2">1200</span><span class="se">\t</span><span class="s2">2400</span><span class="se">\t</span><span class="s2">4800&quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;                    </span><span class="se">\t</span><span class="s2">9600</span><span class="se">\t</span><span class="s2">14400</span><span class="se">\t</span><span class="s2">19200&quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;                    </span><span class="se">\t</span><span class="s2">38400</span><span class="se">\t</span><span class="s2">57600</span><span class="se">\t</span><span class="s2">115200&quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;                    </span><span class="se">\t</span><span class="s2">128000</span><span class="se">\t</span><span class="s2">256000&quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Please enter one of the above rates.&quot;</span><span class="p">)</span>
+        <span class="n">choice</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">input</span><span class="p">())</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\t\t</span><span class="s2">Setting Updated&quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;--------------------------------------------------&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">choice</span>
+
+
+<span class="c1"># Used to update the debug state of the program/library.</span>
+<span class="c1">#   Parameter input : True = ON / False = OFF</span>
+<span class="k">def</span> <span class="nf">Set_Debug</span><span class="p">():</span>
+
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\t\t</span><span class="s2">Setting Updated&quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;--------------------------------------------------&quot;</span><span class="p">)</span>
+        <span class="k">if</span><span class="p">(</span><span class="n">Debug_Status</span><span class="p">):</span>
+                <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">True</span>
+
+
+<span class="c1">#Sets Mode of operation.</span>
+<span class="c1">#   CONTINUOUS - Reads in data over 1 second interval. Prints out signal strength.</span>
+<span class="c1">#   STATIONARY - Reads in set amount of data and displays it in graph and table form.</span>
+<span class="k">def</span> <span class="nf">Set_Mode</span><span class="p">():</span>
+
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Modes: CONTINUOUS (1)&quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;       STATIONARY (2)&quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Choose Mode: &quot;</span><span class="p">)</span>
+
+        <span class="n">Result</span> <span class="o">=</span> <span class="s2">&quot;Placeholder&quot;</span>
+        <span class="k">while</span><span class="p">(</span><span class="mi">1</span><span class="p">):</span>
+                <span class="n">choice</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="nb">input</span><span class="p">())</span>
+                <span class="k">if</span><span class="p">(</span><span class="n">choice</span> <span class="o">==</span> <span class="s1">&#39;1&#39;</span><span class="p">):</span>
+                        <span class="n">Result</span> <span class="o">=</span> <span class="s2">&quot;CONTINUOUS_MODE&quot;</span>
+                        <span class="k">break</span>
+                <span class="k">elif</span><span class="p">(</span><span class="n">choice</span> <span class="o">==</span> <span class="s1">&#39;2&#39;</span><span class="p">):</span>
+                        <span class="n">Result</span> <span class="o">=</span> <span class="s2">&quot;STATIONARY_MODE&quot;</span>
+                        <span class="k">break</span>
+                <span class="k">else</span><span class="p">:</span>
+                        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Enter valid mode. 1 or 2&quot;</span><span class="p">)</span>
+
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\t\t</span><span class="s2">Setting Updated&quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;--------------------------------------------------&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">Result</span>
+
+
+<span class="c1">#Sets Operating System. Used if creation of serial port system.</span>
+<span class="k">def</span> <span class="nf">Set_OS</span><span class="p">():</span>
+
+        <span class="k">global</span> <span class="n">Serial_Port</span>
+
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Select Windows or Linux.&quot;</span><span class="p">)</span>
+        <span class="k">while</span><span class="p">(</span><span class="mi">1</span><span class="p">):</span>
+                <span class="n">choice</span> <span class="o">=</span> <span class="nb">input</span><span class="p">()</span>
+                <span class="k">if</span><span class="p">(</span><span class="n">choice</span> <span class="o">==</span> <span class="s2">&quot;Windows&quot;</span><span class="p">):</span>
+                        <span class="n">Serial_Port</span> <span class="o">=</span> <span class="s1">&#39;COM4&#39;</span>
+                        <span class="k">break</span>
+                <span class="k">elif</span><span class="p">(</span><span class="n">choice</span> <span class="o">==</span> <span class="s2">&quot;Linux&quot;</span><span class="p">):</span>
+                        <span class="n">Serial_Port</span> <span class="o">=</span> <span class="s1">&#39;/dev/ttyUSB0&#39;</span>
+                        <span class="k">break</span>
+                <span class="k">else</span><span class="p">:</span>
+                        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Enter either &#39;Windows&#39; or &#39;Linux&#39;&quot;</span><span class="p">)</span>
+
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\t\t</span><span class="s2">Setting Updated&quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;--------------------------------------------------&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">choice</span>
+
+<span class="c1"># Prompts the user to enter a serial port to be used in serial communication.</span>
+<span class="c1">#   Returns specific serial port that was selected.</span>
+<span class="k">def</span> <span class="nf">Set_SerialPort</span><span class="p">():</span>
+
+        <span class="k">while</span><span class="p">(</span><span class="mi">1</span><span class="p">):</span>
+                <span class="k">if</span><span class="p">(</span><span class="n">Operating_System</span> <span class="o">==</span> <span class="s2">&quot;Linux&quot;</span><span class="p">):</span>
+                        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Allowed Serial Ports: </span><span class="se">\t</span><span class="s2">USB0</span><span class="se">\t</span><span class="s2">USB1</span><span class="se">\t</span><span class="s2">USB2&quot;</span><span class="p">)</span>
+                        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Please enter one of the above ports.&quot;</span><span class="p">)</span>
+                        <span class="n">port</span> <span class="o">=</span> <span class="nb">input</span><span class="p">()</span>
+
+                        <span class="k">if</span><span class="p">(</span><span class="n">port</span> <span class="o">==</span> <span class="s2">&quot;USB0&quot;</span><span class="p">):</span>
+                                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\t\t</span><span class="s2">Setting Updated&quot;</span><span class="p">)</span>
+                                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;--------------------------------------------------&quot;</span><span class="p">)</span>
+                                <span class="k">return</span> <span class="s1">&#39;/dev/ttyUSB0&#39;</span>
+                        <span class="k">elif</span><span class="p">(</span><span class="n">port</span> <span class="o">==</span> <span class="s2">&quot;USB1&quot;</span><span class="p">):</span>
+                                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\t\t</span><span class="s2">Setting Updated&quot;</span><span class="p">)</span>
+                                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;--------------------------------------------------&quot;</span><span class="p">)</span>
+                                <span class="k">return</span> <span class="s1">&#39;/dev/ttyUSB1&#39;</span>
+                        <span class="k">elif</span><span class="p">(</span><span class="n">port</span> <span class="o">==</span> <span class="s2">&quot;USB2&quot;</span><span class="p">):</span>
+                                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\t\t</span><span class="s2">Setting Updated&quot;</span><span class="p">)</span>
+                                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;--------------------------------------------------&quot;</span><span class="p">)</span>
+                                <span class="k">return</span> <span class="s1">&#39;/dev/ttyUSB2&#39;</span>
+                        <span class="k">else</span><span class="p">:</span>
+                                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Invalid or wrong connection. Check your port!&quot;</span><span class="p">)</span>
+                <span class="k">elif</span><span class="p">(</span><span class="n">Operating_System</span> <span class="o">==</span> <span class="s2">&quot;Windows&quot;</span><span class="p">):</span>
+                        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Allowed Serial Ports: </span><span class="se">\t</span><span class="s2">COM0</span><span class="se">\t</span><span class="s2">COM1</span><span class="se">\t</span><span class="s2">COM2</span><span class="se">\t</span><span class="s2">COM3</span><span class="se">\t</span><span class="s2">COM4&quot;</span><span class="p">)</span>
+                        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Please enter one of the above ports.&quot;</span><span class="p">)</span>
+                        <span class="n">port</span> <span class="o">=</span> <span class="nb">input</span><span class="p">()</span>
+
+                        <span class="k">if</span><span class="p">(</span><span class="n">port</span> <span class="o">==</span> <span class="s2">&quot;COM0&quot;</span> <span class="ow">or</span> <span class="s2">&quot;COM1&quot;</span> <span class="ow">or</span> <span class="s2">&quot;COM2&quot;</span> <span class="ow">or</span> <span class="s2">&quot;COM3&quot;</span> <span class="ow">or</span> <span class="s2">&quot;COM4&quot;</span><span class="p">):</span>
+                                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\t\t</span><span class="s2">Setting Updated&quot;</span><span class="p">)</span>
+                                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;--------------------------------------------------&quot;</span><span class="p">)</span>
+                                <span class="k">return</span> <span class="n">port</span>
+                        <span class="k">else</span><span class="p">:</span>
+                                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Invalid or wrong connection. Check your port!&quot;</span><span class="p">)</span>
+
+
+<span class="c1">#Used in setup of the system settings.</span>
+<span class="k">def</span> <span class="nf">Settings_Config</span><span class="p">():</span>
+
+        <span class="k">global</span> <span class="n">Baud_Rate</span>
+        <span class="k">global</span> <span class="n">Debug_Status</span>
+        <span class="k">global</span> <span class="n">Operation_Mode</span>
+        <span class="k">global</span> <span class="n">Operating_System</span>
+        <span class="k">global</span> <span class="n">Serial_Port</span>
+
+        <span class="k">while</span><span class="p">(</span><span class="mi">1</span><span class="p">):</span>
+
+                <span class="c1">#Clears screen of all previous output.</span>
+                <span class="n">clear_output</span><span class="p">()</span>
+
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;--------------------------------------------------&quot;</span><span class="p">)</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;SETTINGS MENU: &quot;</span><span class="p">)</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+
+                <span class="c1"># Prompts user for OS.</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Operating System: &quot;</span> <span class="o">+</span> <span class="n">Operating_System</span><span class="p">)</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Change OS? Y/n&quot;</span><span class="p">)</span>
+                <span class="n">Operating_System</span> <span class="o">=</span> <span class="n">Update</span><span class="p">(</span><span class="nb">input</span><span class="p">(),</span> <span class="s2">&quot;OS&quot;</span><span class="p">)</span>
+
+                <span class="c1"># Prompts user for mode.</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Operation Mode: &quot;</span> <span class="o">+</span> <span class="n">Operation_Mode</span><span class="p">)</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Change Mode? Y/n&quot;</span><span class="p">)</span>
+                <span class="n">Operation_Mode</span> <span class="o">=</span> <span class="n">Update</span><span class="p">(</span><span class="nb">input</span><span class="p">(),</span> <span class="s2">&quot;Mode&quot;</span><span class="p">)</span>
+
+                <span class="c1"># Prompts user for Baudrate change.</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Baudrate: &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">Baud_Rate</span><span class="p">))</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Change Baudrate? Y/n&quot;</span><span class="p">)</span>
+                <span class="n">Baud_Rate</span> <span class="o">=</span> <span class="n">Update</span><span class="p">(</span><span class="nb">input</span><span class="p">(),</span> <span class="s2">&quot;Baud&quot;</span><span class="p">)</span>
+
+                <span class="c1"># Prompts user for serial port change.</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Serial Port: &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">Serial_Port</span><span class="p">))</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Change Port? Y/n&quot;</span><span class="p">)</span>
+                <span class="n">Serial_Port</span> <span class="o">=</span> <span class="n">Update</span><span class="p">(</span><span class="nb">input</span><span class="p">(),</span> <span class="s2">&quot;Port&quot;</span><span class="p">)</span>
+
+                <span class="c1">#Prompts user for debug change.</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Debug Status: &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">Debug_Status</span><span class="p">))</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Change Status? Y/n&quot;</span><span class="p">)</span>
+                <span class="n">Debug_Status</span> <span class="o">=</span> <span class="n">Update</span><span class="p">(</span><span class="nb">input</span><span class="p">(),</span> <span class="s2">&quot;Debug&quot;</span><span class="p">)</span>
+
+                <span class="c1"># Prints all chosen settings to screen to verify they are correct.</span>
+                <span class="n">Display_Settings</span><span class="p">()</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Exit to Program (Exit) or Alter Settings (Alter)&quot;</span><span class="p">)</span>
+                <span class="n">choice</span> <span class="o">=</span> <span class="nb">input</span><span class="p">()</span>
+                <span class="k">if</span><span class="p">(</span><span class="n">choice</span><span class="o">==</span><span class="s2">&quot;Exit&quot;</span><span class="p">):</span>
+                        <span class="c1"># Establishes a serial communication line to the ESP32/HMC.</span>
+                        <span class="n">Serial_Create</span><span class="p">()</span>
+                        <span class="k">break</span>
+
+
+<span class="c1"># Predicts time left until completion of data collection.</span>
+<span class="k">def</span> <span class="nf">Time_Until_Done</span><span class="p">():</span>
+
+        <span class="k">global</span> <span class="n">Iteration_Amount</span>
+        <span class="k">global</span> <span class="n">Refresh_Rate</span>
+
+        <span class="n">Total_Time</span> <span class="o">=</span> <span class="p">(</span><span class="n">Iteration_Amount</span> <span class="o">*</span> <span class="n">Refresh_Rate</span><span class="p">)</span>
+
+        <span class="n">hours</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">minutes</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">seconds</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="k">while</span><span class="p">(</span><span class="n">Total_Time</span> <span class="o">&gt;=</span> <span class="mi">3600</span><span class="p">):</span>
+                <span class="n">Total_time</span> <span class="o">-=</span> <span class="mi">3600</span>
+                <span class="n">hours</span> <span class="o">+=</span> <span class="mi">1</span>
+
+        <span class="k">while</span><span class="p">(</span><span class="n">Total_Time</span> <span class="o">&gt;=</span> <span class="mi">60</span><span class="p">):</span>
+                <span class="n">Total_Time</span> <span class="o">-=</span> <span class="mi">60</span>
+                <span class="n">minutes</span> <span class="o">+=</span> <span class="mi">1</span>
+
+        <span class="k">while</span><span class="p">(</span><span class="n">Total_Time</span> <span class="o">&gt;=</span> <span class="mi">1</span><span class="p">):</span>
+                <span class="n">Total_Time</span> <span class="o">-=</span> <span class="mi">1</span>
+                <span class="n">seconds</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="k">if</span><span class="p">(</span><span class="n">seconds</span> <span class="o">&gt;</span> <span class="mi">60</span><span class="p">):</span>
+                        <span class="n">minutes</span> <span class="o">+=</span> <span class="mi">1</span>
+                        <span class="n">seconds</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="k">if</span><span class="p">(</span><span class="n">hours</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">):</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Time remaining: &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">hours</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;hours, &quot;</span> <span class="o">+</span>
+                          <span class="nb">str</span><span class="p">(</span><span class="n">minutes</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;minutes, &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">seconds</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;seconds&quot;</span><span class="p">)</span>
+        <span class="k">elif</span><span class="p">(</span><span class="n">minutes</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">):</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Time remaining: &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">minutes</span><span class="p">)</span> <span class="o">+</span>
+                          <span class="s2">&quot;minutes, &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">seconds</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;seconds&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Time remaining: &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">seconds</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;seconds&quot;</span><span class="p">)</span>
+
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;--------------------------------------------------&quot;</span><span class="p">)</span>
+
+
+<span class="c1"># Responsible for updating specific setting.</span>
+<span class="c1">#   Parameter System_Change: Yes or no status.</span>
+<span class="c1">#   Parameter Origin: Where the function call originated from.</span>
+<span class="c1">#   Return Updated_Setting: New setting to overwrite current configuration.</span>
+<span class="k">def</span> <span class="nf">Update</span><span class="p">(</span><span class="n">System_Change</span><span class="p">,</span> <span class="n">Origin</span><span class="p">):</span>
+
+        <span class="k">global</span> <span class="n">Baud_Rate</span>
+        <span class="k">global</span> <span class="n">Debug_Status</span>
+        <span class="k">global</span> <span class="n">Serial_Port</span>
+
+        <span class="k">if</span><span class="p">(</span><span class="n">Origin</span> <span class="o">==</span> <span class="s2">&quot;Baud&quot;</span><span class="p">):</span>
+                <span class="k">if</span><span class="p">(</span><span class="n">System_Change</span> <span class="o">==</span> <span class="s1">&#39;Y&#39;</span><span class="p">):</span>
+                        <span class="k">return</span> <span class="n">Set_Baudrate</span><span class="p">()</span>
+                <span class="k">else</span><span class="p">:</span>
+                        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;--------------------------------------------------&quot;</span><span class="p">)</span>
+                        <span class="k">return</span> <span class="n">Baud_Rate</span>
+        <span class="k">elif</span><span class="p">(</span><span class="n">Origin</span> <span class="o">==</span> <span class="s2">&quot;Port&quot;</span><span class="p">):</span>
+                <span class="k">if</span><span class="p">(</span><span class="n">System_Change</span> <span class="o">==</span> <span class="s1">&#39;Y&#39;</span><span class="p">):</span>
+                        <span class="k">return</span> <span class="n">Set_SerialPort</span><span class="p">()</span>
+                <span class="k">else</span><span class="p">:</span>
+                        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;--------------------------------------------------&quot;</span><span class="p">)</span>
+                        <span class="k">return</span> <span class="n">Serial_Port</span>
+        <span class="k">elif</span><span class="p">(</span><span class="n">Origin</span> <span class="o">==</span> <span class="s2">&quot;Debug&quot;</span><span class="p">):</span>
+                <span class="k">if</span><span class="p">(</span><span class="n">System_Change</span> <span class="o">==</span> <span class="s1">&#39;Y&#39;</span><span class="p">):</span>
+                        <span class="k">return</span> <span class="n">Set_Debug</span><span class="p">()</span>
+                <span class="k">else</span><span class="p">:</span>
+                        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;--------------------------------------------------&quot;</span><span class="p">)</span>
+                        <span class="k">return</span> <span class="n">Debug_Status</span>
+        <span class="k">elif</span><span class="p">(</span><span class="n">Origin</span> <span class="o">==</span> <span class="s2">&quot;Mode&quot;</span><span class="p">):</span>
+                <span class="k">if</span><span class="p">(</span><span class="n">System_Change</span> <span class="o">==</span> <span class="s1">&#39;Y&#39;</span><span class="p">):</span>
+                        <span class="k">return</span> <span class="n">Set_Mode</span><span class="p">()</span>
+                <span class="k">else</span><span class="p">:</span>
+                        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;--------------------------------------------------&quot;</span><span class="p">)</span>
+                        <span class="k">return</span> <span class="n">Operation_Mode</span>
+        <span class="k">elif</span><span class="p">(</span><span class="n">Origin</span> <span class="o">==</span> <span class="s2">&quot;OS&quot;</span><span class="p">):</span>
+                <span class="k">if</span><span class="p">(</span><span class="n">System_Change</span> <span class="o">==</span> <span class="s1">&#39;Y&#39;</span><span class="p">):</span>
+                        <span class="k">return</span> <span class="n">Set_OS</span><span class="p">()</span>
+                <span class="k">else</span><span class="p">:</span>
+                        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;--------------------------------------------------&quot;</span><span class="p">)</span>
+                        <span class="k">return</span> <span class="n">Operating_System</span>
+
+
+<span class="c1"># Collects first List_Length cycles. Averages the results and zeros out data</span>
+<span class="c1">#   to better show difference while graphing</span>
+<span class="c1">#   Parameter x: x axis value</span>
+<span class="c1">#   Parameter y: y axis value</span>
+<span class="c1">#   Parameter z: z axis value</span>
+<span class="c1">#   Return a,b,c: Updated x,y,z axis values.</span>
+<span class="k">def</span> <span class="nf">Zero_Data</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">):</span>
+
+        <span class="k">global</span> <span class="n">X_Avg</span>
+        <span class="k">global</span> <span class="n">Y_Avg</span>
+        <span class="k">global</span> <span class="n">Z_Avg</span>
+
+        <span class="n">X</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="n">Y</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">y</span><span class="p">)</span>
+        <span class="n">Z</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">z</span><span class="p">)</span>
+
+        <span class="c1"># Rounded to 2 decimal places for readability.</span>
+        <span class="n">a</span> <span class="o">=</span> <span class="nb">round</span><span class="p">(</span><span class="n">X</span> <span class="o">-</span> <span class="n">X_Avg</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+        <span class="n">b</span> <span class="o">=</span> <span class="nb">round</span><span class="p">(</span><span class="n">Y</span> <span class="o">-</span> <span class="n">Y_Avg</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+        <span class="n">c</span> <span class="o">=</span> <span class="nb">round</span><span class="p">(</span><span class="n">Z</span> <span class="o">-</span> <span class="n">Z_Avg</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">c</span>
+</pre></div>
+</div>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">Magnetic Field Variation Detection</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<p class="caption"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Software</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#micro-controller">Micro Controller</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#hmi-jupyter">HMI (Jupyter)</a></li>
+</ul>
+</li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="index.html" title="previous chapter">Magnetic Field Variation Detection</a></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, Jared Danner.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.6.3</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.10</a>
+      
+      |
+      <a href="_sources/MFVD_Software.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

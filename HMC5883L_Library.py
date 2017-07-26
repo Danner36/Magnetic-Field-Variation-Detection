@@ -343,7 +343,9 @@ def Display_FFT(df):
     # Sums together axes to form the maximum magnetic field strength at that
     #   point. Excludes X due to it not having an impact besides adding unwanted frequencies.
     for i in range(0,len(X_FFT)):
-        Freq_Sig.append(Y_FFT[i] + Z_FFT[i])
+        #THIS IS WHAT I AM CHANGING WHEN THE TESTS SAY ADDING/DROPPING AXES.
+        #   Line 455 also needs to be updated to reflect a change.
+        Freq_Sig.append(X_FFT[i] + Z_FFT[i])
         
     # Plots FFT.
     plt.plot(Freq_Axis, Freq_Sig, label="Frequency Composition")
@@ -447,7 +449,10 @@ def Display_Signal_Strength(df,i):
     # Sums together axes to form the maximum magnetic field strength at that
     #   point. Excludes X due to it not having an impact besides adding unwanted frequencies.
     for i in range(0,len(X_FFT)):
-        Freq_Sig.append(Y_FFT[i] + Z_FFT[i])
+
+        #THIS IS WHAT I AM CHANGING WHEN THE TESTS SAY ADDING/DROPPING AXES.
+        #   Line 348 also needs to be updated to reflect a change.
+        Freq_Sig.append(X_FFT[i] + Z_FFT[i])
     
     #Computes ratio from FFT data.
     if(Debug_Status):

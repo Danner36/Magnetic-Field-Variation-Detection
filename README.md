@@ -3,7 +3,7 @@
     7/14/17 @ 9:50am
 
 ### Repository Info ###
-    Development Status: ACTIVE
+    Development Status: COMPLETED
     Version: 1.3b
 
     Main: ESP32 Development Board
