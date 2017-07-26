@@ -4,8 +4,8 @@
 
 ### Repository Info ###
     Development Status: COMPLETED
-    Version: 1.3b
-
+    Version: 1.4
+    
     Main: ESP32 Development Board
     Periphials: HMC5883L Magnetometer
     Software: Visual Studio Code - C++
