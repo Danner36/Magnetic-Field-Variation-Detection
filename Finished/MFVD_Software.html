@@ -24,7 +24,7 @@
     <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="prev" title="Magnetic Field Variation Detection" href="index.html" />
+    <link rel="prev" title="Hardware" href="MFVD_Hardware.html" />
    
   <link rel="stylesheet" href="_static/custom.css" type="text/css" />
   
@@ -43,12 +43,15 @@
   <div class="section" id="software">
 <h1>Software<a class="headerlink" href="#software" title="Permalink to this headline">¶</a></h1>
 <p><strong>Fair Warning</strong>: This page is very lengthly due to the entire project’s code being displayed.
-Using the navigation menu to the left under <em>Software</em> is advised.</p>
-<div class="section" id="micro-controller">
-<h2>Micro Controller<a class="headerlink" href="#micro-controller" title="Permalink to this headline">¶</a></h2>
-<p>The following software has been developed for Espressif’s ESP32 Development Board using Visual Studio.
-This software utilizes FreeRTOS’s ability for dual core functionality, will remaining simplistic in
+Using the navigation menu to the left under “Software” is advised.</p>
+<div class="section" id="embedded-software-visual-studio-code">
+<h2>Embedded Software (Visual Studio Code)<a class="headerlink" href="#embedded-software-visual-studio-code" title="Permalink to this headline">¶</a></h2>
+<p>This software has been developed for Espressif’s ESP32 Development Board. This software
+utilizes FreeRTOS’s ability for dual core functionality, while remaining simplistic in
 size and scope in the C++ language.</p>
+<p>The following code is responsible for taking the input from the user, given through Jupyter,
+setting up the correct environment with the HMC5883L, pulling the data from the magnetometer,
+and relaying that information back to Jupyter via serial communication.</p>
 <div class="highlight-default"><div class="highlight"><pre><span></span>#include &lt;Wire.h&gt;
 
 //Address of the HMC5883L.
@@ -382,14 +385,20 @@ void Serial_Clear(){
 </pre></div>
 </div>
 </div>
-<div class="section" id="hmi-jupyter">
-<h2>HMI (Jupyter)<a class="headerlink" href="#hmi-jupyter" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="human-machine-interface-jupyter">
+<h2>Human Machine Interface (Jupyter)<a class="headerlink" href="#human-machine-interface-jupyter" title="Permalink to this headline">¶</a></h2>
 <p>Jupyter was chosen to be the interfacing link between the ESP32 and the user due to its ability to run
-python scipts which allows for real time data analytics. Jupyter, being a package in python, also has numerous
+python scipts which allows for real time data analytics. Jupyter, being a package of python, also has numerous
 libraries focused on organizing, displaying, and saving data at its disposal. Below are two sets of code, the
 first is the main program which calls upon the library (second) to preform actions upon the incoming data
 stream from the HMC5883L Compass.</p>
 <p><strong>FIRST (Main Program)</strong></p>
+<p>This first section of software prompts the user to input variables such as the operating system, desired serial
+port, and so on. After the correct enviroment is established, the user selects between a continuous feed mode or
+a set amount mode. The continuous feed mode consists of reading in an indefinite amount of data from the HMC,
+preforming a FFT on that data, and displaying the difference in magnitude of signal between the background noise
+and the desired 60Hz. The second mode (set amount) reads in a certain amount entered by the user, than collects
+/displays that data through tables and graphs.</p>
 <div class="highlight-default"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">HMC5883L_Library</span> <span class="k">as</span> <span class="nn">hmc</span>
 <span class="o">%</span><span class="n">matplotlib</span> <span class="n">inline</span>
 
@@ -454,6 +463,9 @@ stream from the HMC5883L Compass.</p>
 </pre></div>
 </div>
 <p><strong>SECOND (Library)</strong></p>
+<p>This second block of software, as stated above, is the library for the HMC5883L. This library contains all of
+the methods and variables used within the program. For a more detailed description of what each method does or
+can do, please read that method’s commented section that lies directly above that respective method.</p>
 <div class="highlight-default"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">import</span> <span class="nn">os</span>
@@ -1505,9 +1517,11 @@ stream from the HMC5883L Compass.</p>
 <h3>Navigation</h3>
 <p class="caption"><span class="caption-text">Contents:</span></p>
 <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="MFVD_Report.html">Project Report</a></li>
+<li class="toctree-l1"><a class="reference internal" href="MFVD_Hardware.html">Hardware</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Software</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#micro-controller">Micro Controller</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#hmi-jupyter">HMI (Jupyter)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#embedded-software-visual-studio-code">Embedded Software (Visual Studio Code)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#human-machine-interface-jupyter">Human Machine Interface (Jupyter)</a></li>
 </ul>
 </li>
 </ul>
@@ -1516,7 +1530,7 @@ stream from the HMC5883L Compass.</p>
 <h3>Related Topics</h3>
 <ul>
   <li><a href="index.html">Documentation overview</a><ul>
-      <li>Previous: <a href="index.html" title="previous chapter">Magnetic Field Variation Detection</a></li>
+      <li>Previous: <a href="MFVD_Hardware.html" title="previous chapter">Hardware</a></li>
   </ul></li>
 </ul>
 </div>

@@ -1,0 +1,15 @@
+Hardware
+========
+
+This section does into detail about what type of hardware was used during 
+the project and what purpose it served.
+
+Micro Controller
+----------------
+
+The micro controller used for the entirety of this project was Espressif's ESP32 Developement
+Board. This board was chosen due its competitive cost, large onboard memory, and dual core 
+functionality. The dual core system onboard the ESP32 was utilized in a way that the first core
+was responsible for transmission/recovery of data via the serial port and the second core was 
+used to communicate to the HMC5883L (described below), retrieve its data, and format it correctly
+before passing it back to the Jupyter for display. 

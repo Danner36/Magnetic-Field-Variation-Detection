@@ -1,15 +1,19 @@
 Software
-==================
+========
 
 **Fair Warning**: This page is very lengthly due to the entire project's code being displayed. 
-Using the navigation menu to the left under *Software* is advised.
+Using the navigation menu to the left under "Software" is advised.
 
-Micro Controller
-----------------
+Embedded Software (Visual Studio Code)
+--------------------------------------
 
-The following software has been developed for Espressif's ESP32 Development Board using Visual Studio. 
-This software utilizes FreeRTOS's ability for dual core functionality, will remaining simplistic in 
+This software has been developed for Espressif's ESP32 Development Board. This software 
+utilizes FreeRTOS's ability for dual core functionality, while remaining simplistic in 
 size and scope in the C++ language.
+
+The following code is responsible for taking the input from the user, given through Jupyter,  
+setting up the correct environment with the HMC5883L, pulling the data from the magnetometer, 
+and relaying that information back to Jupyter via serial communication.
 
 ::
 
@@ -344,16 +348,24 @@ size and scope in the C++ language.
 	  }
 	}
 	
-HMI (Jupyter)
--------------
+Human Machine Interface (Jupyter)
+---------------------------------
 
 Jupyter was chosen to be the interfacing link between the ESP32 and the user due to its ability to run
-python scipts which allows for real time data analytics. Jupyter, being a package in python, also has numerous 
+python scipts which allows for real time data analytics. Jupyter, being a package of python, also has numerous 
 libraries focused on organizing, displaying, and saving data at its disposal. Below are two sets of code, the 
 first is the main program which calls upon the library (second) to preform actions upon the incoming data 
 stream from the HMC5883L Compass.
 
 **FIRST (Main Program)**
+
+This first section of software prompts the user to input variables such as the operating system, desired serial
+port, and so on. After the correct enviroment is established, the user selects between a continuous feed mode or 
+a set amount mode. The continuous feed mode consists of reading in an indefinite amount of data from the HMC,
+preforming a FFT on that data, and displaying the difference in magnitude of signal between the background noise
+and the desired 60Hz. The second mode (set amount) reads in a certain amount entered by the user, than collects
+/displays that data through tables and graphs. 
+
 ::
 	
 	import HMC5883L_Library as hmc
@@ -419,6 +431,11 @@ stream from the HMC5883L Compass.
 				i = i + 1
 	
 **SECOND (Library)**
+
+This second block of software, as stated above, is the library for the HMC5883L. This library contains all of 
+the methods and variables used within the program. For a more detailed description of what each method does or 
+can do, please read that method's commented section that lies directly above that respective method.
+
 ::
 
 	import matplotlib.pyplot as plt

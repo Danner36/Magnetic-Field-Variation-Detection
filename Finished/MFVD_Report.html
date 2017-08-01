@@ -1,0 +1,475 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>Project Report &#8212; Magnetic Field Variation Detection 1.0.0 documentation</title>
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '1.0.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Hardware" href="MFVD_Hardware.html" />
+    <link rel="prev" title="Magnetic Field Variation Detection (MFVD)" href="index.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="project-report">
+<h1>Project Report<a class="headerlink" href="#project-report" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="introduction">
+<h2>Introduction<a class="headerlink" href="#introduction" title="Permalink to this headline">¶</a></h2>
+<p>The purpose of this project was to explore the feasibility and viablity in the detection
+of variation in the magnetic fields surrounding the drill head for the purpose of avoiding
+damage to the drill, evading previously placed utlities, and to determine if such utlities
+are composed of current-carrying wire.</p>
+</div>
+<div class="section" id="method-procedure">
+<h2>Method &amp; Procedure<a class="headerlink" href="#method-procedure" title="Permalink to this headline">¶</a></h2>
+<p>When conducting tests, the following rules remained true.</p>
+<blockquote>
+<div><ul class="simple">
+<li>The wire was suspended approximatley 1 inch above the plane of the magnetometer.</li>
+<li>The magnetometer was always positioned directly undernearth (0.0m) the wire at the start of each test cycle and moved outward as needed.</li>
+<li>The electronics used to pull the Amperage were turned off between all tests and were allowed to level out once turned back on.</li>
+</ul>
+</div></blockquote>
+<p>For all trials and tests, a combination of the following electronics were used to achieve the desired Amperages.</p>
+<blockquote>
+<div><ul class="simple">
+<li>7 Amps – Industrial Drum Fan</li>
+<li>13.5 Amps – Industrial Drum Fan and Shop Vac</li>
+<li>19.5 Amps – Industrial Drum Fan and 2 Shop Vacs</li>
+</ul>
+</div></blockquote>
+<p>Procedure:</p>
+<blockquote>
+<div><ul>
+<li><p class="first">Download/Launch Visual Studio Code and Jupyter Notebook.</p>
+</li>
+<li><p class="first">Import/Open scripts from repository into their respective IDE.</p>
+<blockquote>
+<div><ul class="simple">
+<li>Files with extensions of .ino belong in VSC and all other .py and .ipynb belong in a Jupyter Notebook directory.</li>
+</ul>
+</div></blockquote>
+</li>
+<li><p class="first">Upload the script in Visual Studio Code to the Espressif micro controller.</p>
+<blockquote>
+<div><ul class="simple">
+<li>Download required Libraries if prompted.</li>
+</ul>
+</div></blockquote>
+</li>
+<li><p class="first">Restart/Launch the Jupyter Notebook kernal.</p>
+<blockquote>
+<div><ul class="simple">
+<li>Under the ‘Kernal’ tab, select ‘Restart &amp; Clear Output’ than click play on all cells, in order, once previous output clears.</li>
+</ul>
+</div></blockquote>
+</li>
+<li><p class="first">Connect the micro controller to your computer via USB and HMC5883L via wires.</p>
+<blockquote>
+<div><ul class="simple">
+<li>Place micro controller in desired location.</li>
+</ul>
+</div></blockquote>
+</li>
+<li><p class="first">Follow setup instructions displayed by Jupyter.</p>
+<blockquote>
+<div><ul class="simple">
+<li>Choose ‘STARTIONARY_MODE’ to display and save the data from each test.</li>
+<li>Choose ‘CONTINUOUS_MODE’ to have a continuous read out of the 60Hz strength compared to background noise.</li>
+</ul>
+</div></blockquote>
+</li>
+<li><p class="first">Let program run for displayed amount of time, save the file, and repeat last two bullet points.</p>
+</li>
+</ul>
+</div></blockquote>
+<p><strong>All Files/Tables/Graphs are saved in the same directory as the program, in a folder called ‘Saves’.</strong></p>
+</div>
+<div class="section" id="results">
+<h2>Results<a class="headerlink" href="#results" title="Permalink to this headline">¶</a></h2>
+<p>The following comparisons are based off numbers calculated using Ampere’s Law at <a class="reference external" href="http://hyperphysics.phy-astr.gsu.edu/hbase/magnetic/magcur.html">http://hyperphysics.phy-astr.gsu.edu/hbase/magnetic/magcur.html</a>.
+By using the equations and calulator on this site, some baseline numbers were developed that this project aimed to replicate and prove.</p>
+<p><strong>Values listed under 7, 13.5, and 19.5 have units of microTeslas (uT)</strong></p>
+<p><strong>1 Guass = 100 microTesla</strong></p>
+<p>Predicted values using Ampere’s Law</p>
+<table border="1" class="docutils">
+<colgroup>
+<col width="25%" />
+<col width="25%" />
+<col width="25%" />
+<col width="25%" />
+</colgroup>
+<thead valign="bottom">
+<tr class="row-odd"><th class="head">Distance(m)</th>
+<th class="head">7 Amps</th>
+<th class="head">13.5 Amps</th>
+<th class="head">19.5 Amps</th>
+</tr>
+</thead>
+<tbody valign="top">
+<tr class="row-even"><td>0.00</td>
+<td>140</td>
+<td>270</td>
+<td>390</td>
+</tr>
+<tr class="row-odd"><td>0.05</td>
+<td>28</td>
+<td>54</td>
+<td>78</td>
+</tr>
+<tr class="row-even"><td>0.10</td>
+<td>14</td>
+<td>27</td>
+<td>39</td>
+</tr>
+<tr class="row-odd"><td>0.15</td>
+<td>9</td>
+<td>18</td>
+<td>26</td>
+</tr>
+<tr class="row-even"><td>0.20</td>
+<td>7</td>
+<td>14</td>
+<td>20</td>
+</tr>
+</tbody>
+</table>
+<p>Experimental values obtained from tests</p>
+<table border="1" class="docutils">
+<colgroup>
+<col width="25%" />
+<col width="25%" />
+<col width="25%" />
+<col width="25%" />
+</colgroup>
+<thead valign="bottom">
+<tr class="row-odd"><th class="head">Distance(m)</th>
+<th class="head">7 Amps</th>
+<th class="head">13.5 Amps</th>
+<th class="head">19.5 Amps</th>
+</tr>
+</thead>
+<tbody valign="top">
+<tr class="row-even"><td>0.00</td>
+<td>75</td>
+<td>120</td>
+<td>150</td>
+</tr>
+<tr class="row-odd"><td>0.05</td>
+<td>7</td>
+<td>12</td>
+<td>18</td>
+</tr>
+<tr class="row-even"><td>0.10</td>
+<td>1</td>
+<td>3</td>
+<td>3</td>
+</tr>
+<tr class="row-odd"><td>0.15</td>
+<td>—</td>
+<td>2</td>
+<td>2</td>
+</tr>
+<tr class="row-even"><td>0.20</td>
+<td>—</td>
+<td>—</td>
+<td>2</td>
+</tr>
+</tbody>
+</table>
+<p>With the Amperage held constant for each test, 10 trials were conducted at the same distance before being moved farther out.
+The above numbers are the rounded average of all 10 trials at that distance. For clarity, the following chart is a condensed
+depiction of how trials and data were recorded.</p>
+<table border="1" class="docutils">
+<colgroup>
+<col width="24%" />
+<col width="24%" />
+<col width="24%" />
+<col width="29%" />
+</colgroup>
+<thead valign="bottom">
+<tr class="row-odd"><th class="head">Trial #</th>
+<th class="head">Distance(m)</th>
+<th class="head">Amperage(A)</th>
+<th class="head">microTesla(uT)</th>
+</tr>
+</thead>
+<tbody valign="top">
+<tr class="row-even"><td>5625</td>
+<td>0.00</td>
+<td>19.5</td>
+<td>+– 150</td>
+</tr>
+<tr class="row-odd"><td>7431</td>
+<td>0.00</td>
+<td>19.5</td>
+<td>+– 150</td>
+</tr>
+<tr class="row-even"><td>3843</td>
+<td>0.00</td>
+<td>19.5</td>
+<td>+– 150</td>
+</tr>
+<tr class="row-odd"><td>4897</td>
+<td>0.05</td>
+<td>19.5</td>
+<td>+– 18</td>
+</tr>
+<tr class="row-even"><td>727</td>
+<td>0.05</td>
+<td>19.5</td>
+<td>+– 16</td>
+</tr>
+<tr class="row-odd"><td>1420</td>
+<td>0.05</td>
+<td>19.6</td>
+<td>+– 17</td>
+</tr>
+<tr class="row-even"><td>3193</td>
+<td>0.10</td>
+<td>19.6</td>
+<td>+– 3</td>
+</tr>
+<tr class="row-odd"><td>5312</td>
+<td>0.10</td>
+<td>19.7</td>
+<td>+– 2</td>
+</tr>
+<tr class="row-even"><td>8622</td>
+<td>0.10</td>
+<td>19.7</td>
+<td>+– 3</td>
+</tr>
+<tr class="row-odd"><td>3744</td>
+<td>0.15</td>
+<td>19.7</td>
+<td>+– 2</td>
+</tr>
+<tr class="row-even"><td>4928</td>
+<td>0.15</td>
+<td>19.7</td>
+<td>+– 2</td>
+</tr>
+<tr class="row-odd"><td>5965</td>
+<td>0.15</td>
+<td>19.7</td>
+<td>+– 2</td>
+</tr>
+<tr class="row-even"><td>1349</td>
+<td>0.20</td>
+<td>19.6</td>
+<td>+– 2</td>
+</tr>
+<tr class="row-odd"><td>7592</td>
+<td>0.20</td>
+<td>19.7</td>
+<td>+– 2</td>
+</tr>
+<tr class="row-even"><td>8499</td>
+<td>0.20</td>
+<td>19.7</td>
+<td>+– 2</td>
+</tr>
+</tbody>
+</table>
+<p>The following table illistrates the detection of sine waves for a current-carrying wire’s magnetic field at varying distances and amperages.
+Click a picture to display a higher resolution version.</p>
+<table border="1" class="docutils">
+<colgroup>
+<col width="14%" />
+<col width="29%" />
+<col width="29%" />
+<col width="29%" />
+</colgroup>
+<thead valign="bottom">
+<tr class="row-odd"><th class="head">Meters</th>
+<th class="head">7 Amps</th>
+<th class="head">13.5 Amps</th>
+<th class="head">19.5 Amps</th>
+</tr>
+</thead>
+<tbody valign="top">
+<tr class="row-even"><td>0.00</td>
+<td><a class="reference internal" href="_images/Trial_2470.png"><img alt="7A" src="_images/Trial_2470.png" style="width: 250.0px; height: 168.0px;" /></a></td>
+<td><a class="reference internal" href="_images/Trial_7270.png"><img alt="13.5A" src="_images/Trial_7270.png" style="width: 250.0px; height: 168.0px;" /></a></td>
+<td><a class="reference internal" href="_images/Trial_7431.png"><img alt="19.5A" src="_images/Trial_7431.png" style="width: 250.0px; height: 168.0px;" /></a></td>
+</tr>
+<tr class="row-odd"><td>0.05</td>
+<td><a class="reference internal" href="_images/Trial_3341.png"><img alt="7B" src="_images/Trial_3341.png" style="width: 250.0px; height: 168.0px;" /></a></td>
+<td><a class="reference internal" href="_images/Trial_1626.png"><img alt="13.5B" src="_images/Trial_1626.png" style="width: 250.0px; height: 168.0px;" /></a></td>
+<td><a class="reference internal" href="_images/Trial_1420.png"><img alt="19.5B" src="_images/Trial_1420.png" style="width: 250.0px; height: 168.0px;" /></a></td>
+</tr>
+<tr class="row-even"><td>0.10</td>
+<td><a class="reference internal" href="_images/Trial_4782.png"><img alt="7C" src="_images/Trial_4782.png" style="width: 250.0px; height: 168.0px;" /></a></td>
+<td><a class="reference internal" href="_images/Trial_5448.png"><img alt="13.5C" src="_images/Trial_5448.png" style="width: 250.0px; height: 168.0px;" /></a></td>
+<td><a class="reference internal" href="_images/Trial_8622.png"><img alt="19.5C" src="_images/Trial_8622.png" style="width: 250.0px; height: 168.0px;" /></a></td>
+</tr>
+<tr class="row-odd"><td>0.15</td>
+<td>NA</td>
+<td><a class="reference internal" href="_images/Trial_3297.png"><img alt="13.5D" src="_images/Trial_3297.png" style="width: 250.0px; height: 168.0px;" /></a></td>
+<td><a class="reference internal" href="_images/Trial_414.png"><img alt="19.5D" src="_images/Trial_414.png" style="width: 250.0px; height: 168.0px;" /></a></td>
+</tr>
+<tr class="row-even"><td>0.20</td>
+<td>NA</td>
+<td>NA</td>
+<td><a class="reference internal" href="_images/Trial_1349.png"><img alt="19.5E" src="_images/Trial_1349.png" style="width: 250.0px; height: 168.0px;" /></a></td>
+</tr>
+</tbody>
+</table>
+<p>The following table is working with the same data as above, but has had a Fast Fouier Transform (FFT) applied to all three axes which
+changed the signal from the time domain to the frequency domain. This gave a clear indication of what frequencies a certain signal was composed
+of and the magnitude of all frequencies 0-60Hz.</p>
+<table border="1" class="docutils">
+<colgroup>
+<col width="14%" />
+<col width="29%" />
+<col width="29%" />
+<col width="29%" />
+</colgroup>
+<thead valign="bottom">
+<tr class="row-odd"><th class="head">Meters</th>
+<th class="head">7 Amps</th>
+<th class="head">13.5 Amps</th>
+<th class="head">19.5 Amps</th>
+</tr>
+</thead>
+<tbody valign="top">
+<tr class="row-even"><td>0.00</td>
+<td><a class="reference internal" href="_images/Trial_2470_FFT.png"><img alt="7Af" src="_images/Trial_2470_FFT.png" style="width: 250.0px; height: 168.0px;" /></a></td>
+<td><a class="reference internal" href="_images/Trial_7270_FFT.png"><img alt="13.5Af" src="_images/Trial_7270_FFT.png" style="width: 250.0px; height: 168.0px;" /></a></td>
+<td><a class="reference internal" href="_images/Trial_7431_FFT.png"><img alt="19.5Af" src="_images/Trial_7431_FFT.png" style="width: 250.0px; height: 168.0px;" /></a></td>
+</tr>
+<tr class="row-odd"><td>0.05</td>
+<td><a class="reference internal" href="_images/Trial_3341_FFT.png"><img alt="7Bf" src="_images/Trial_3341_FFT.png" style="width: 250.0px; height: 168.0px;" /></a></td>
+<td><a class="reference internal" href="_images/Trial_1626_FFT.png"><img alt="13.5Bf" src="_images/Trial_1626_FFT.png" style="width: 250.0px; height: 168.0px;" /></a></td>
+<td><a class="reference internal" href="_images/Trial_1420_FFT.png"><img alt="19.5Bf" src="_images/Trial_1420_FFT.png" style="width: 250.0px; height: 168.0px;" /></a></td>
+</tr>
+<tr class="row-even"><td>0.10</td>
+<td><a class="reference internal" href="_images/Trial_4782_FFT.png"><img alt="7Cf" src="_images/Trial_4782_FFT.png" style="width: 250.0px; height: 168.0px;" /></a></td>
+<td><a class="reference internal" href="_images/Trial_5448_FFT.png"><img alt="13.5Cf" src="_images/Trial_5448_FFT.png" style="width: 250.0px; height: 168.0px;" /></a></td>
+<td><a class="reference internal" href="_images/Trial_8622_FFT.png"><img alt="19.5Cf" src="_images/Trial_8622_FFT.png" style="width: 250.0px; height: 168.0px;" /></a></td>
+</tr>
+<tr class="row-odd"><td>0.15</td>
+<td>NA</td>
+<td><a class="reference internal" href="_images/Trial_3297_FFT.png"><img alt="13.5Df" src="_images/Trial_3297_FFT.png" style="width: 250.0px; height: 168.0px;" /></a></td>
+<td><a class="reference internal" href="_images/Trial_414_FFT.png"><img alt="19.5Df" src="_images/Trial_414_FFT.png" style="width: 250.0px; height: 168.0px;" /></a></td>
+</tr>
+<tr class="row-even"><td>0.20</td>
+<td>NA</td>
+<td>NA</td>
+<td><a class="reference internal" href="_images/Trial_1349_FFT.png"><img alt="19.5Ef" src="_images/Trial_1349_FFT.png" style="width: 250.0px; height: 168.0px;" /></a></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Conclusion</strong></p>
+<p>In conclusion, based on the collected data, it is possible for magnetometers sampling at over 120Hz to detect and distinguish a 60Hz signal
+being transfered through the magnetic field generated by a current-carrying wire up to a distance. That distance is directly related and
+dependent upon the amount of current being pulled through the wire. This is shown through the graphs above in the form of raw data from
+the changing magnetic field and through an FFT altered version to show the composition of frequencies that make up the magnetic field over
+a 1 second duration.</p>
+<p>After comparisons between the theroetical and experimental values, there is clear error that is offsetting the experimental values.
+The average percentage error for the trial distances were: 56.9% for 0.0m, 76.9% for 0.05m, 91.3% for 0.1m, 92.5% for 0.15m, and
+95.1% for 0.2m. This logarithmic type behavior discredits human error due to their being no sporadic changes between trials. This
+type of error points toward the material composition of the wire used in the experiment and or surrounding environment causing a
+dampening affect on the magnetic field generated by the observed wire.</p>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">Magnetic Field Variation Detection</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<p class="caption"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Project Report</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#introduction">Introduction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#method-procedure">Method &amp; Procedure</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#results">Results</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="MFVD_Hardware.html">Hardware</a></li>
+<li class="toctree-l1"><a class="reference internal" href="MFVD_Software.html">Software</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="index.html" title="previous chapter">Magnetic Field Variation Detection (MFVD)</a></li>
+      <li>Next: <a href="MFVD_Hardware.html" title="next chapter">Hardware</a></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, Jared Danner.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.6.3</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.10</a>
+      
+      |
+      <a href="_sources/MFVD_Report.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

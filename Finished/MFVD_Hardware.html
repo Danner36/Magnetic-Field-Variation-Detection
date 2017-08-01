@@ -1,0 +1,158 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>Hardware &#8212; Magnetic Field Variation Detection 1.0.0 documentation</title>
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '1.0.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Software" href="MFVD_Software.html" />
+    <link rel="prev" title="Project Report" href="MFVD_Report.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="hardware">
+<h1>Hardware<a class="headerlink" href="#hardware" title="Permalink to this headline">¶</a></h1>
+<p>This section goes into detail about what type of hardware was used during
+the project and what purpose it served.</p>
+<div class="section" id="micro-controller">
+<h2>Micro Controller<a class="headerlink" href="#micro-controller" title="Permalink to this headline">¶</a></h2>
+<p>The micro controller used for the entirety of this project was Espressif’s ESP32 Developement
+Board. This board was chosen due its competitive cost, large onboard memory, and dual core
+functionality. The dual core system onboard the ESP32 was utilized in a way that the first core
+was responsible for transmission/recovery of data via the serial port and the second core was
+used to communicate to the HMC5883L (described below), retrieve its data, and format it correctly
+before passing it back to Jupyter.</p>
+<a class="reference internal image-reference" href="_images/ESP32.png"><img alt="_images/ESP32.png" class="align-center" src="_images/ESP32.png" style="width: 500px; height: 320px;" /></a>
+<p>ESP32 Specifications: <a class="reference external" href="http://esp32.net/#Features">http://esp32.net/#Features</a></p>
+</div>
+<div class="section" id="magnetometer">
+<h2>Magnetometer<a class="headerlink" href="#magnetometer" title="Permalink to this headline">¶</a></h2>
+<p>The magnetometer selected for this project is Honeywell’s Magnetometer Compass (HMC5883L). The HMC
+was chosen due to its ability to provide 1-2 degree heading accuracy with a range of –800 microTesla (uT)
+to +800 uT all while having a data output rate of upto 160Hz.</p>
+<a class="reference internal image-reference" href="_images/HMC.png"><img alt="_images/HMC.png" class="align-center" src="_images/HMC.png" style="width: 500px; height: 320px;" /></a>
+<p>HMC5883L Datasheet: <a class="reference external" href="https://cdn-shop.adafruit.com/datasheets/HMC5883L_3-Axis_Digital_Compass_IC.pdf">https://cdn-shop.adafruit.com/datasheets/HMC5883L_3-Axis_Digital_Compass_IC.pdf</a></p>
+</div>
+<div class="section" id="component-configuartion">
+<h2>Component Configuartion<a class="headerlink" href="#component-configuartion" title="Permalink to this headline">¶</a></h2>
+<p>For this project, the ESP32 Developement Board and HMC5883L are connected via 4 wires (Picture 1).
+They both were fixated upon the same breadboard and the entire configuartion sat ontop of a 3D printed cart
+that would allow for steady movement in one axis in respect to the wire (Picture 2).</p>
+<table border="1" class="docutils">
+<colgroup>
+<col width="50%" />
+<col width="50%" />
+</colgroup>
+<thead valign="bottom">
+<tr class="row-odd"><th class="head">Picture 1</th>
+<th class="head">Picture 2</th>
+</tr>
+</thead>
+<tbody valign="top">
+<tr class="row-even"><td><a class="reference internal" href="_images/BreadBoard.png"><img alt="Board" src="_images/BreadBoard.png" style="width: 443.52px; height: 332.64px;" /></a></td>
+<td><a class="reference internal" href="_images/Slider.png"><img alt="Slide" src="_images/Slider.png" style="width: 443.52px; height: 332.64px;" /></a></td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">Magnetic Field Variation Detection</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<p class="caption"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="MFVD_Report.html">Project Report</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Hardware</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#micro-controller">Micro Controller</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#magnetometer">Magnetometer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#component-configuartion">Component Configuartion</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="MFVD_Software.html">Software</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="MFVD_Report.html" title="previous chapter">Project Report</a></li>
+      <li>Next: <a href="MFVD_Software.html" title="next chapter">Software</a></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, Jared Danner.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.6.3</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.10</a>
+      
+      |
+      <a href="_sources/MFVD_Hardware.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
